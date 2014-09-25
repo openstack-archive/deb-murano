@@ -1,0 +1,5 @@
+murano (2014.2~b3-1) experimental; urgency=low
+
+  * Initial release. (Closes: #762822)
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 25 Sep 2014 17:35:42 +0800

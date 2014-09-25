@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+. /usr/share/debconf/confmodule
+PROJECT_NAME=murano
+PROJECT_CONF=/etc/${PROJECT_NAME}/${PROJECT_NAME}.conf
+
+#PKGOS-INCLUDE#
+
+pkgos_var_user_group ${PROJECT_NAME}
+pkgos_dbc_read_conf -pkg ${PROJECT_NAME}-common ${PROJECT_CONF} database connection ${PROJECT_NAME} $@
+pkgos_rabbit_read_conf ${PROJECT_CONF} DEFAULT ${PROJECT_NAME}
+pkgos_read_admin_creds ${PROJECT_CONF} keystone_authtoken ${PROJECT_NAME}
+
+db_go
+
+exit 0

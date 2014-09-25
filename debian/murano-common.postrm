@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -e
+
+PROJECT_NAME=murano
+PROJECT_CONF=/etc/${PROJECT_NAME}/${PROJECT_NAME}.conf
+PROJECT_PKG=${PROJECT_NAME}-common
+
+if [ "$1" = "purge" ] && [ -f /usr/share/debconf/confmodule ] ; then
+	if [ -f /usr/share/debconf/confmodule ] ; then
+		. /usr/share/debconf/confmodule
+
+		db_get ${PROJECT_NAME}/configure_db || true
+		if [ "$RET" = "true" ]; then
+			if [ -f /usr/share/dbconfig-common/dpkg/postrm ]; then
+				. /usr/share/dbconfig-common/dpkg/postrm
+				dbc_go ${PROJECT_PKG} $@
+			else
+				rm -f /etc/dbconfig-common/${PROJECT_PKG}.conf
+				if which ucf >/dev/null 2>&1; then
+					ucf --purge /etc/dbconfig-common/${PROJECT_PKG}.conf
+					ucfr --purge ${PROJECT_PKG} /etc/dbconfig-common/${PROJECT_PKG}.conf
+				fi
+			fi
+		fi
+	fi
+	rm -f ${PROJECT_CONF}
+	rmdir --ignore-fail-on-non-empty /etc/${PROJECT_NAME} || true
+	rm -rf /var/lib/${PROJECT_NAME} /var/log/${PROJECT_NAME}
+fi
+
+#DEBHELPER#
+
+exit 0

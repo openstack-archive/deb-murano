@@ -1,0 +1,8 @@
+/var/log/murano/murano-api.log {
+    daily
+    missingok
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+}

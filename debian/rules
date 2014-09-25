@@ -1,0 +1,48 @@
+#!/usr/bin/make -f
+
+UPSTREAM_GIT = git://github.com/stackforge/murano.git
+
+include /usr/share/openstack-pkg-tools/pkgos.make
+export OSLO_PACKAGE_VERSION=$(VERSION)
+
+%:
+	dh $@ --buildsystem=python_distutils --with python2,sphinxdoc,systemd
+
+override_dh_auto_test:
+ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+	./run_tests.sh -N -P
+endif
+
+override_dh_sphinxdoc:
+ifeq (,$(findstring nodocs, $(DEB_BUILD_OPTIONS)))
+	PYTHONPATH=. sphinx-build -b html doc/source $(CURDIR)/debian/murano-doc/usr/share/doc/murano-doc/html
+	dh_sphinxdoc -O--buildsystem=python_distutils
+endif
+
+override_dh_auto_build:
+	dh_auto_build
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func murano-api.config
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func murano-api.postinst
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func murano-common.config
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func murano-common.postinst
+
+override_dh_install:
+	dh_install -O--buildsystem=python_distutils --fail-missing
+	# Get the main config file to use decent defaults.
+	install -D -m 0644 $(CURDIR)/etc/murano/murano.conf.sample $(CURDIR)/murano-common/usr/share/murano-common/murano.conf
+	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/murano-common/usr/share/murano-common/murano.conf
+
+	# Install other configuration files in a more "normal" way
+	mkdir -p $(CURDIR)/murano-common/etc/murano
+	cp $(CURDIR)/etc/murano/logging.conf.sample $(CURDIR)/murano-common/etc/murano/logging.conf
+	cp $(CURDIR)/etc/murano/murano-paste.ini $(CURDIR)/etc/murano/policy.json $(CURDIR)/murano-common/etc/murano
+
+override_dh_clean:
+	rm -rf 	build \
+	 	debian/murano-common.postinst \
+		debian/murano-common.config \
+		debian/murano-api.postinst \
+		debian/murano-api.config \
+		doc/build/man
+
+	dh_clean -O--buildsystem=python_distutils
