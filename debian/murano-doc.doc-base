@@ -1,0 +1,9 @@
+Document: murano-doc
+Title: Murano Documentation
+Author: OpenStack
+Abstract: Sphinx documentation for Murano
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/murano-doc/html/index.html
+Files: /usr/share/doc/murano-doc/html/*
