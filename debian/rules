@@ -40,13 +40,13 @@ override_dh_auto_build:
 override_dh_install:
 	dh_install -O--buildsystem=python_distutils --fail-missing
 	# Get the main config file to use decent defaults.
-	install -D -m 0644 $(CURDIR)/etc/murano/murano.conf.sample $(CURDIR)/murano-common/usr/share/murano-common/murano.conf
-	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/murano-common/usr/share/murano-common/murano.conf
+	install -D -m 0644 $(CURDIR)/etc/murano/murano.conf.sample $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
+	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 
 	# Install other configuration files in a more "normal" way
-	mkdir -p $(CURDIR)/murano-common/etc/murano
-	cp $(CURDIR)/etc/murano/logging.conf.sample $(CURDIR)/murano-common/etc/murano/logging.conf
-	cp $(CURDIR)/etc/murano/murano-paste.ini $(CURDIR)/etc/murano/policy.json $(CURDIR)/murano-common/etc/murano
+	mkdir -p $(CURDIR)/debian/murano-common/etc/murano
+	cp $(CURDIR)/etc/murano/logging.conf.sample $(CURDIR)/debian/murano-common/etc/murano/logging.conf
+	cp $(CURDIR)/etc/murano/murano-paste.ini $(CURDIR)/etc/murano/policy.json $(CURDIR)/debian/murano-common/etc/murano
 
 	# Also install alembic_migration folder
 	set -e ; for pyvers in $(PYTHONS); do \
