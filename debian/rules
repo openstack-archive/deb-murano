@@ -37,6 +37,11 @@ override_dh_install:
 	cp $(CURDIR)/etc/murano/logging.conf.sample $(CURDIR)/murano-common/etc/murano/logging.conf
 	cp $(CURDIR)/etc/murano/murano-paste.ini $(CURDIR)/etc/murano/policy.json $(CURDIR)/murano-common/etc/murano
 
+	# Also install alembic_migration folder
+	set -e ; for pyvers in $(PYTHONS); do \
+		cp -rfv $(CURDIR)/murano/db/migration/alembic_migrations $(CURDIR)/debian/python-murano/usr/lib/python$$pyvers/dist-packages/murano/db/migration/ ; \
+	done
+
 override_dh_clean:
 	rm -rf 	build \
 	 	debian/murano-common.postinst \
