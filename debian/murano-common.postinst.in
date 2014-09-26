@@ -20,7 +20,7 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 	pkgos_dbc_postinst ${PROJECT_CONF} database connection ${PROJECT_NAME} $@
         db_get ${PROJECT_NAME}/configure_db
 	if [ "$RET" = "true" ]; then
-		su -s /bin/sh -c "murano-db-manage --config-file /etc/murano/murano.conf upgrade head" ${PROJECT_NAME}
+		su -s /bin/sh -c "murano-db-manage --config-file=/etc/murano/murano.conf upgrade" ${PROJECT_NAME}
 	fi
 fi
 
