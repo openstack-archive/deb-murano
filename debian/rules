@@ -63,5 +63,5 @@ override_dh_clean:
 		debian/murano-api.postinst \
 		debian/murano-api.config \
 		doc/build/man
-
+	rm -f debian/*.init debian/*.service debian/*.upstart
 	dh_clean -O--buildsystem=python_distutils

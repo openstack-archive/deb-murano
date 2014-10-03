@@ -2,6 +2,8 @@ murano (2014.2~rc1-1) experimental; urgency=medium
 
   * New upstream release.
   * Updated (build-)depends for this release.
+  * Now using templated init script for sysv-rc, generated systemd unit and
+    upstart jobs, using openstack-pkg-tools >= 13.
 
  -- Thomas Goirand <zigo@debian.org>  Fri, 03 Oct 2014 14:05:24 +0800
 
