@@ -204,7 +204,7 @@ Methods:
             path: '/baz/1'
           - op: test
             path: '/baz'
-            value': [1, 3]
+            value: [1, 3]
           - op: replace
             path: '/baz/0'
             value: 42
@@ -213,3 +213,43 @@ Methods:
       - $doc: {}
       - Return: $doc.patch($patches)
 
+  testTake:
+    Arguments:
+      - list:
+          Contract: [$.int()]
+      - count:
+          Contract: $.int()
+    Body:
+      - Return: $list.take($count)
+
+  testSkip:
+    Arguments:
+      - list:
+          Contract: [$.int()]
+      - count:
+          Contract: $.int()
+    Body:
+      - Return: $list.skip($count)
+
+  testSkipTake:
+    Arguments:
+      - list:
+          Contract: [$.int()]
+      - start:
+          Contract: $.int()
+      - count:
+          Contract: $.int()
+    Body:
+      - $l: $list.skip($start)
+      - Return: $l.take($count)
+
+  testSkipTakeChained:
+    Arguments:
+      - list:
+          Contract: [$.int()]
+      - start:
+          Contract: $.int()
+      - count:
+          Contract: $.int()
+    Body:
+      - Return: $list.skip($start).take($count)

@@ -21,6 +21,7 @@ import string
 import time
 import types
 
+import itertools
 import jsonpatch
 import jsonpointer
 import yaql.context
@@ -206,7 +207,10 @@ def _int(value):
 
 
 def _pselect(collection, composer):
-    return helpers.parallel_select(collection(), composer)
+    if isinstance(collection, types.ListType):
+        return helpers.parallel_select(collection, composer)
+    else:
+        return helpers.parallel_select(collection(), composer)
 
 
 def _patch(obj, patch):
@@ -290,6 +294,24 @@ def _flatten(self):
             yield i
 
 
+@yaql.context.EvalArg('self', dict)
+@yaql.context.EvalArg('other', dict)
+def _merge_with(self, other):
+    return helpers.merge_dicts(self, other)
+
+
+@yaql.context.EvalArg('collection', collections.Iterable)
+@yaql.context.EvalArg('count', int)
+def _skip(collection, count):
+    return itertools.islice(collection, count, None)
+
+
+@yaql.context.EvalArg('collection', collections.Iterable)
+@yaql.context.EvalArg('count', int)
+def _take(collection, count):
+    return itertools.islice(collection, count)
+
+
 def register(context):
     context.register_function(
         lambda json, mappings: _transform_json(json(), mappings()), 'bind')
@@ -322,3 +344,6 @@ def register(context):
     context.register_function(_keys, 'keys')
     context.register_function(_values, 'values')
     context.register_function(_flatten, 'flatten')
+    context.register_function(_merge_with, 'mergeWith')
+    context.register_function(_skip, 'skip')
+    context.register_function(_take, 'take')

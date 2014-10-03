@@ -21,7 +21,6 @@ import logging.config
 import logging.handlers
 import os
 import sys
-import tempfile
 
 from oslo.config import cfg
 from paste import deploy
@@ -159,9 +158,20 @@ networking_opts = [
 
     cfg.StrOpt('default_dns', default='8.8.8.8',
                help='Default DNS nameserver to be assigned to '
-               'created Networks')
-]
+               'created Networks'),
 
+    cfg.StrOpt('external_network', default='ext-net',
+               help='ID or name of the external network for routers '
+                    'to connect to'),
+
+    cfg.StrOpt('router_name', default='murano-default-router',
+               help='Name of the router that going to be used in order to '
+                    'join all networks created by Murano'),
+
+    cfg.BoolOpt('create_router', default=True,
+                help='This option will create a router when one with '
+                     '"router_name" does not exist'),
+]
 stats_opt = [
     cfg.IntOpt('period', default=5,
                help=_('Statistics collection interval in minutes.'
@@ -177,10 +187,8 @@ engine_opts = [
 metadata_dir = cfg.StrOpt('metadata-dir', default='./meta',
                           help='Metadata dir')
 
-temp_pkg_cache = os.path.join(tempfile.gettempdir(), 'murano-packages-cache')
-
 packages_opts = [
-    cfg.StrOpt('packages_cache', default=temp_pkg_cache,
+    cfg.StrOpt('packages_cache', default=None,
                help='Location (directory) for Murano package cache.'),
 
     cfg.IntOpt('package_size_limit', default=5,
