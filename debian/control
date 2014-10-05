@@ -53,7 +53,7 @@ Build-Depends-Indep: alembic (>= 0.6.4),
                      python-yaql,
                      subunit (>= 0.0.18),
                      testrepository (>= 0.0.18)
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Homepage: https://github.com/openstack/murano
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=openstack/murano.git;a=summary
 Vcs-Git: git://anonscm.debian.org/openstack/murano.git
