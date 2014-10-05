@@ -6,6 +6,7 @@ murano (2014.2~rc1-1) experimental; urgency=medium
     upstart jobs, using openstack-pkg-tools >= 13.
   * Fixed double-declared (build-)depends on python-keystoneclient.
   * Standards-Version is now 3.9.6 (no change).
+  * Added a watch file.
 
  -- Thomas Goirand <zigo@debian.org>  Fri, 03 Oct 2014 14:05:24 +0800
 
