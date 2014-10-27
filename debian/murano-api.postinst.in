@@ -6,7 +6,7 @@ set -e
 
 if [ "$1" = "configure" ] ; then
 	. /usr/share/debconf/confmodule
-	pkgos_register_endpoint_postinst murano murano application_catalog "Murano Catalog Service" 8084 ""
+	pkgos_register_endpoint_postinst murano murano application_catalog "Murano Catalog Service" 8082 ""
 	db_stop
 fi
 
