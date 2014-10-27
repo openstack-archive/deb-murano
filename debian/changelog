@@ -1,6 +1,7 @@
 murano (2014.2-2) experimental; urgency=medium
 
   * murano-api and murano-engine now depends on murano-common.
+  * Fixed the service type for murano-api.
 
  -- Thomas Goirand <zigo@debian.org>  Mon, 27 Oct 2014 21:14:37 +0800
 
