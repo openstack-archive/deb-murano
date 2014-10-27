@@ -136,7 +136,7 @@ Pre-Depends: dpkg (>= 1.15.6~)
 Depends: adduser,
          debconf,
          dbconfig-common,
-         python-murano (= ${source:Version}),
+         murano-common (= ${source:Version}),
          ${misc:Depends},
          ${python:Depends}
 Description: cloud-ready application catalog - API server
@@ -156,7 +156,7 @@ Pre-Depends: dpkg (>= 1.15.6~)
 Depends: adduser,
          debconf,
          dbconfig-common,
-         python-murano (= ${source:Version}),
+         murano-common (= ${source:Version}),
          ${misc:Depends},
          ${python:Depends}
 Description: cloud-ready application catalog - Engine server
