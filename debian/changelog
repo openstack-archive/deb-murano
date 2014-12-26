@@ -1,3 +1,9 @@
+murano (2014.2-3) experimental; urgency=medium
+
+  * Added ordereddict to pydist-overrides.
+
+ -- Thomas Goirand <zigo@debian.org>  Sat, 27 Dec 2014 00:22:18 +0800
+
 murano (2014.2-2) experimental; urgency=medium
 
   * murano-api and murano-engine now depends on murano-common.
