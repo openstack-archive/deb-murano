@@ -53,6 +53,7 @@ Build-Depends-Indep: alembic (>= 0.6.4),
                      python-yaml,
                      python-yaql,
                      subunit (>= 0.0.18),
+                     tempest,
                      testrepository (>= 0.0.18)
 Standards-Version: 3.9.6
 Homepage: https://github.com/openstack/murano
