@@ -2,7 +2,8 @@ murano (2015.1~b1-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Reviewed (build-)depends for this release.
-  * Removed the "disable-failing-tests.patch" which doesn't apply anymore.
+  * Rebased the "disable-failing-tests.patch" which didn't apply anymore.
+  * Now generating the .conf file using oslo-config-generator.
 
  -- Thomas Goirand <zigo@debian.org>  Fri, 02 Jan 2015 17:50:42 +0100
 

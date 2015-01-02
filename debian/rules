@@ -43,7 +43,12 @@ override_dh_auto_build:
 override_dh_install:
 	dh_install -O--buildsystem=python_distutils --fail-missing
 	# Get the main config file to use decent defaults.
-	install -D -m 0644 $(CURDIR)/etc/murano/murano.conf.sample $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
+	mkdir -p $(CURDIR)/debian/murano-common/usr/share/murano-common
+	oslo-config-generator --output_file $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf \
+		--namespace keystonemiddleware.auth_token \
+		--namespace murano \
+		--namespace oslo.db \
+		--namespace oslo.messaging
 	sed -i 's|^[# \t]*notification_driver[ \t]*=.*|notification_driver=messagingv2|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 
