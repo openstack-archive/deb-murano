@@ -1,3 +1,9 @@
+murano (2015.1~b1-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 02 Jan 2015 17:50:42 +0100
+
 murano (2014.2-3) experimental; urgency=medium
 
   * Added ordereddict to pydist-overrides.
