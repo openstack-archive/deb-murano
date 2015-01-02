@@ -28,6 +28,7 @@ import time
 
 import eventlet.wsgi
 from oslo.config import cfg
+from oslo.serialization import jsonutils
 import routes
 import routes.middleware
 import webob.dec
@@ -36,13 +37,12 @@ from xml.dom import minidom
 from xml.parsers import expat
 
 from murano.api.v1 import schemas
+from murano.common import xmlutils
 from murano.openstack.common import exception
-from murano.openstack.common.gettextutils import _  # noqa
-from murano.openstack.common import jsonutils
+from murano.openstack.common.gettextutils import _
 from murano.openstack.common import log as logging
 from murano.openstack.common import service
 from murano.openstack.common import sslutils
-from murano.openstack.common import xmlutils
 
 socket_opts = [
     cfg.IntOpt('backlog',

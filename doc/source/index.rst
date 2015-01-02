@@ -61,7 +61,7 @@ contribute to the project.
 .. toctree::
    :maxdepth: 1
 
-   articles/murano_pl_index
+   murano_pl/murano_pl_index
    articles/dynamic_ui
    articles/workflow
 
@@ -83,6 +83,7 @@ contribute to the project.
 
    contributing
    guidelines
+   articles/debug_tips
 
 
 **API specification**

@@ -15,15 +15,16 @@
 import os
 import sys
 
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('../../'))
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.insert(0, os.path.abspath('./'))
-sys.path.insert(0, os.path.abspath('.'))
 
-from murano import __version_info as version
+
+from murano.version import version_info
 
 # Supress warnings for docs that aren't used yet
 #unused_docs = [
@@ -55,15 +56,20 @@ project = 'Murano'
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
-release = version.version_string()
-version = version.canonical_version_string()
+release = version_info.release_string()
+version = version_info.version_string()
 
 # Set the default Pygments syntax
 highlight_language = 'python'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = []
+exclude_patterns = ['specification/murano-repository.rst',
+                    'specification/murano-api.rst',
+                    'murano_pl/builtin_functions.rst',
+                    'install/configure_network.rst',
+                    'articles/ad-ui.rst',
+                    'articles/telnet.rst']
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.
@@ -75,6 +81,17 @@ show_authors = False
 # a list of builtin themes.
 html_theme_path = ['.']
 html_theme = '_theme'
+
+# If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
+# using the given strftime format.
+#html_last_updated_fmt = '%b %d, %Y'
+git_cmd = "git log --pretty=format:'%ad, commit %h' --date=local -n1"
+html_last_updated_fmt = os.popen(git_cmd).read()
+
+
+# The name for this set of Sphinx documents. If None, it defaults to
+# "<project> v<release> documentation".
+html_title = 'Murano'
 
 # Custom sidebar templates, maps document names to template names.
 html_sidebars = {

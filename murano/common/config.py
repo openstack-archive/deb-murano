@@ -25,8 +25,8 @@ import sys
 from oslo.config import cfg
 from paste import deploy
 
-import murano
-from murano.openstack.common.gettextutils import _  # noqa
+from murano.openstack.common.gettextutils import _
+from murano import version
 
 paste_deploy_opts = [
     cfg.StrOpt('flavor', help='Paste flavor'),
@@ -98,8 +98,6 @@ neutron_opts = [
 ]
 
 keystone_opts = [
-    cfg.StrOpt('auth_url', help='URL to access OpenStack Identity service.'),
-
     cfg.BoolOpt('insecure', default=False,
                 help='This option explicitly allows Murano to perform '
                      '"insecure" SSL connections and transfers with '
@@ -172,7 +170,7 @@ networking_opts = [
                 help='This option will create a router when one with '
                      '"router_name" does not exist'),
 ]
-stats_opt = [
+stats_opts = [
     cfg.IntOpt('period', default=5,
                help=_('Statistics collection interval in minutes.'
                       'Default value is 5 minutes.'))
@@ -180,12 +178,19 @@ stats_opt = [
 
 engine_opts = [
     cfg.BoolOpt('disable_murano_agent', default=False,
-                help=_('Disallow the use of murano-agent'))
+                help=_('Disallow the use of murano-agent')),
+    cfg.StrOpt('class_configs', default='/etc/murano/class-configs',
+               help=_('Path to class configuration files')),
+    cfg.BoolOpt('use_trusts', default=False,
+                help=_("Create resources using trust token rather "
+                       "than user's token"))
 ]
 
 # TODO(sjmc7): move into engine opts?
-metadata_dir = cfg.StrOpt('metadata-dir', default='./meta',
-                          help='Metadata dir')
+metadata_dir = [
+    cfg.StrOpt('metadata-dir', default='./meta',
+               help='Metadata dir')
+]
 
 packages_opts = [
     cfg.StrOpt('packages_cache', default=None,
@@ -202,6 +207,14 @@ packages_opts = [
                     'pagination request')
 ]
 
+file_server = [
+    cfg.StrOpt('file_server', default='')
+]
+
+murano_metadata_url = [
+    cfg.StrOpt('murano_metadata_url', default='')
+]
+
 CONF = cfg.CONF
 CONF.register_opts(paste_deploy_opts, group='paste_deploy')
 CONF.register_cli_opts(bind_opts)
@@ -211,18 +224,18 @@ CONF.register_opts(neutron_opts, group='neutron')
 CONF.register_opts(keystone_opts, group='keystone')
 CONF.register_opts(murano_opts, group='murano')
 CONF.register_opts(engine_opts, group='engine')
-CONF.register_opt(cfg.StrOpt('file_server'))
-CONF.register_cli_opt(cfg.StrOpt('murano_metadata_url'))
-CONF.register_cli_opt(metadata_dir)
+CONF.register_opts(file_server)
+CONF.register_cli_opts(murano_metadata_url)
+CONF.register_cli_opts(metadata_dir)
 CONF.register_opts(packages_opts, group='packages_opts')
-CONF.register_opts(stats_opt, group='stats')
+CONF.register_opts(stats_opts, group='stats')
 CONF.register_opts(networking_opts, group='networking')
 
 
 def parse_args(args=None, usage=None, default_config_files=None):
     CONF(args=args,
          project='murano',
-         version=murano.__version__,
+         version=version.version_string,
          usage=usage,
          default_config_files=default_config_files)
 

@@ -17,6 +17,7 @@ import uuid
 from oslo import messaging
 from oslo.messaging.notify import dispatcher as oslo_dispatcher
 from oslo.messaging import target
+from oslo.utils import timeutils
 
 from sqlalchemy import desc
 
@@ -25,11 +26,10 @@ from murano.common.helpers import token_sanitizer
 from murano.db import models
 from murano.db.services import environments
 from murano.db.services import instances
-from murano.db.services import sessions
 from murano.db import session
-from murano.openstack.common.gettextutils import _  # noqa
+from murano.openstack.common.gettextutils import _
 from murano.openstack.common import log as logging
-from murano.openstack.common import timeutils
+from murano.services import states
 
 
 RPC_SERVICE = None
@@ -96,13 +96,14 @@ class ResultEndpoint(object):
         #close session
         conf_session = unit.query(models.Session).filter_by(
             **{'environment_id': environment.id,
-               'state': 'deploying' if not deleted else 'deleting'}).first()
+               'state': states.SessionState.DEPLOYING if not deleted
+               else states.SessionState.DELETING}).first()
         if num_errors > 0:
             conf_session.state = \
-                sessions.SessionState.DELETE_FAILURE if deleted else \
-                sessions.SessionState.DEPLOY_FAILURE
+                states.SessionState.DELETE_FAILURE if deleted else \
+                states.SessionState.DEPLOY_FAILURE
         else:
-            conf_session.state = sessions.SessionState.DEPLOYED
+            conf_session.state = states.SessionState.DEPLOYED
         conf_session.save(unit)
 
 

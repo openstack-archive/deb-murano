@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
 import inspect
 import types
 
@@ -19,11 +20,6 @@ import murano.dsl.macros as macros
 import murano.dsl.typespec as typespec
 import murano.dsl.virtual_exceptions as virtual_exceptions
 import murano.dsl.yaql_expression as yaql_expression
-
-try:
-    from collections import OrderedDict  # noqa
-except ImportError:  # python2.6
-    from ordereddict import OrderedDict  # noqa
 
 
 macros.register()
@@ -44,10 +40,9 @@ def methodusage(usage):
 
 
 class MuranoMethod(object):
-    def __init__(self, namespace_resolver,
-                 murano_class, name, payload):
+    def __init__(self, murano_class, name, payload):
         self._name = name
-        self._namespace_resolver = namespace_resolver
+        self._murano_class = murano_class
 
         if callable(payload):
             self._body = payload
@@ -62,16 +57,14 @@ class MuranoMethod(object):
             if isinstance(arguments_scheme, types.DictionaryType):
                 arguments_scheme = [{key: value} for key, value in
                                     arguments_scheme.iteritems()]
-            self._arguments_scheme = OrderedDict()
+            self._arguments_scheme = collections.OrderedDict()
             for record in arguments_scheme:
                 if not isinstance(record, types.DictionaryType) \
                         or len(record) > 1:
                     raise ValueError()
                 name = record.keys()[0]
                 self._arguments_scheme[name] = typespec.ArgumentSpec(
-                    record[name], self._namespace_resolver)
-
-        self._murano_class = murano_class
+                    record[name], murano_class)
 
     @property
     def name(self):
@@ -102,9 +95,8 @@ class MuranoMethod(object):
         defaults = func_info.defaults or tuple()
         for i in xrange(len(defaults)):
             data[i + len(data) - len(defaults)][1]['Default'] = defaults[i]
-        result = OrderedDict([
-            (name, typespec.ArgumentSpec(
-                declaration, self._namespace_resolver))
+        result = collections.OrderedDict([
+            (name, typespec.ArgumentSpec(declaration, self.murano_class))
             for name, declaration in data])
         if '_context' in result:
             del result['_context']
