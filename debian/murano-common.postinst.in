@@ -17,9 +17,9 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 	pkgos_write_new_conf ${PROJECT_NAME} ${PROJECT_NAME}.conf
 	pkgos_rabbit_write_conf ${PROJECT_CONF} DEFAULT ${PROJECT_NAME}
 	pkgos_write_admin_creds ${PROJECT_CONF} keystone_authtoken ${PROJECT_NAME}
-	pkgos_dbc_postinst ${PROJECT_CONF} database connection ${PROJECT_NAME} $@
         db_get ${PROJECT_NAME}/configure_db
 	if [ "$RET" = "true" ]; then
+		pkgos_dbc_postinst ${PROJECT_CONF} database connection ${PROJECT_NAME} $@
 		su -s /bin/sh -c "murano-db-manage --config-file=/etc/murano/murano.conf upgrade" ${PROJECT_NAME}
 	fi
 fi
