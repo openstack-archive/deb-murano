@@ -1,6 +1,8 @@
 murano (2014.2-4) experimental; urgency=medium
 
   * Build-depends on dh-python and openstack-pkg-tools >= 22~.
+  * Added a patch to remove the use of ssl.PROTOCOL_SSLv3, which is removed
+    from Debian.
 
  -- Thomas Goirand <zigo@debian.org>  Thu, 15 Jan 2015 00:21:40 +0100
 
