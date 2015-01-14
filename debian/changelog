@@ -1,3 +1,9 @@
+murano (2014.2-4) experimental; urgency=medium
+
+  * Build-depends on dh-python and openstack-pkg-tools >= 22~.
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 15 Jan 2015 00:21:40 +0100
+
 murano (2014.2-3) experimental; urgency=medium
 
   * Added ordereddict to pydist-overrides.
