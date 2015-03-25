@@ -27,8 +27,7 @@ from murano.db import models
 from murano.db.services import core_services
 from murano.db.services import environments as envs
 from murano.db import session as db_session
-
-from murano.openstack.common.gettextutils import _
+from murano.common.i18n import _, _LI
 from murano.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ class Controller(object):
         LOG.debug('Environments:List')
         policy.check('list_environments', request.context)
 
-        #Only environments from same tenant as user should be returned
+        # Only environments from same tenant as user should be returned
         filters = {'tenant_id': request.context.tenant}
         environments = envs.EnvironmentServices.get_environments_by(filters)
         environments = [env.to_dict() for env in environments]
@@ -64,12 +63,12 @@ class Controller(object):
             except db_exc.DBDuplicateEntry:
                 msg = _('Environment with specified name already exists')
                 LOG.exception(msg)
-                raise exc.HTTPConflict(msg)
+                raise exc.HTTPConflict(explanation=msg)
         else:
             msg = _('Environment name must contain only alphanumeric '
                     'or "_-." characters, must start with alpha')
             LOG.exception(msg)
-            raise exc.HTTPClientError(msg)
+            raise exc.HTTPClientError(explanation=msg)
 
         return environment.to_dict()
 
@@ -83,13 +82,13 @@ class Controller(object):
         environment = session.query(models.Environment).get(environment_id)
 
         if environment is None:
-            LOG.info(_('Environment <EnvId {0}> is not found').format(
+            LOG.info(_LI('Environment <EnvId {0}> is not found').format(
                 environment_id))
             raise exc.HTTPNotFound
 
         if environment.tenant_id != request.context.tenant:
-            LOG.info(_('User is not authorized to access '
-                       'this tenant resources.'))
+            LOG.info(_LI('User is not authorized to access '
+                         'this tenant resources.'))
             raise exc.HTTPUnauthorized
 
         env = environment.to_dict()
@@ -99,7 +98,7 @@ class Controller(object):
         if hasattr(request, 'context') and request.context.session:
             session_id = request.context.session
 
-        #add services to env
+        # add services to env
         get_data = core_services.CoreServices.get_data
         env['services'] = get_data(environment_id, '/services', session_id)
 
@@ -116,13 +115,13 @@ class Controller(object):
         environment = session.query(models.Environment).get(environment_id)
 
         if environment is None:
-            LOG.info(_('Environment <EnvId {0}> is not '
-                       'found').format(environment_id))
+            LOG.info(_LI('Environment <EnvId {0}> not '
+                         'found').format(environment_id))
             raise exc.HTTPNotFound
 
         if environment.tenant_id != request.context.tenant:
-            LOG.info(_('User is not authorized to access '
-                       'this tenant resources.'))
+            LOG.info(_LI('User is not authorized to access '
+                         'this tenant resources.'))
             raise exc.HTTPUnauthorized
 
         LOG.debug('ENV NAME: {0}>'.format(body['name']))
@@ -132,8 +131,8 @@ class Controller(object):
         else:
             msg = _('Environment name must contain only alphanumeric '
                     'or "_-." characters, must start with alpha')
-            LOG.exception(msg)
-            raise exc.HTTPClientError(msg)
+            LOG.error(msg)
+            raise exc.HTTPClientError(explanation=msg)
 
         return environment.to_dict()
 

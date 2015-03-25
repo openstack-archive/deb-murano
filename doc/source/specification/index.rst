@@ -25,7 +25,8 @@ General information
     Murano Service API is a programmatic interface used for interaction with
     Murano. Other interaction mechanisms like Murano Dashboard or Murano CLI
     should use API as underlying protocol for interaction.
-    * **Allowed HTTPs requests**
+
+* **Allowed HTTPs requests**
 
   * *POST*   :   To create a resource
   * *GET*    :   Get a resource or list of resources
@@ -42,6 +43,7 @@ General information
   * 403 ``Forbidden`` - access denied.
   * 404 ``Not Found`` - resource was not found
   * 405 ``Method Not Allowed`` - requested method is not supported for resource.
+  * 409 ``Conflict`` - requested method resulted in a conflict with the current state of the resource.
 
 * **Response of POSTs and PUTs**
 
@@ -57,4 +59,5 @@ General information
 
 .. include:: murano-api.rst
 .. include:: murano-repository.rst
+.. include:: murano-env-temp.rst
 

@@ -78,6 +78,26 @@ class Environment(Base, TimestampMixin):
         return dictionary
 
 
+class EnvironmentTemplate(Base, TimestampMixin):
+    """Represents a Environment emplate in the metadata-store."""
+    __tablename__ = 'environment-template'
+
+    id = sa.Column(sa.String(36),
+                   primary_key=True,
+                   default=uuidutils.generate_uuid)
+    name = sa.Column(sa.String(255), nullable=False)
+    tenant_id = sa.Column(sa.String(36), nullable=False)
+    version = sa.Column(sa.BigInteger, nullable=False, default=0)
+    description = sa.Column(st.JsonBlob(), nullable=False, default={})
+    networking = sa.Column(st.JsonBlob(), nullable=True, default={})
+
+    def to_dict(self):
+        dictionary = super(EnvironmentTemplate, self).to_dict()
+        if 'description' in dictionary:
+            del dictionary['description']
+        return dictionary
+
+
 class Session(Base, TimestampMixin):
     __tablename__ = 'session'
 
@@ -94,7 +114,7 @@ class Session(Base, TimestampMixin):
     def to_dict(self):
         dictionary = super(Session, self).to_dict()
         del dictionary['description']
-        #object relations may be not loaded yet
+        # object relations may be not loaded yet
         if 'environment' in dictionary:
             del dictionary['environment']
         return dictionary
@@ -113,6 +133,7 @@ class Task(Base, TimestampMixin):
 
     statuses = sa_orm.relationship("Status", backref='task',
                                    cascade='save-update, merge, delete')
+    result = sa.Column(st.JsonBlob(), nullable=True, default={})
 
     def to_dict(self):
         dictionary = super(Task, self).to_dict()
@@ -132,13 +153,13 @@ class Status(Base, TimestampMixin):
     entity_id = sa.Column(sa.String(255), nullable=True)
     entity = sa.Column(sa.String(10), nullable=True)
     task_id = sa.Column(sa.String(32), sa.ForeignKey('task.id'))
-    text = sa.Column(sa.String(), nullable=False)
+    text = sa.Column(sa.Text(), nullable=False)
     level = sa.Column(sa.String(32), nullable=False)
     details = sa.Column(sa.Text(), nullable=True)
 
     def to_dict(self):
         dictionary = super(Status, self).to_dict()
-        #object relations may be not loaded yet
+        # object relations may be not loaded yet
         if 'deployment' in dictionary:
             del dictionary['deployment']
         return dictionary
@@ -180,7 +201,7 @@ package_to_tag = sa.Table('package_to_tag',
                           sa.Column('tag_id',
                                     sa.String(36),
                                     sa.ForeignKey('tag.id',
-                                    ondelete="CASCADE")))
+                                                  ondelete="CASCADE")))
 
 
 class Instance(Base):
@@ -220,7 +241,7 @@ class Package(Base, TimestampMixin):
     supplier = sa.Column(st.JsonBlob(), nullable=True, default={})
     name = sa.Column(sa.String(80), nullable=False)
     enabled = sa.Column(sa.Boolean, default=True)
-    description = sa.Column(sa.String(512),
+    description = sa.Column(sa.Text(),
                             nullable=False,
                             default='The description is not provided')
     is_public = sa.Column(sa.Boolean, default=False)
@@ -263,6 +284,10 @@ class Category(Base, TimestampMixin):
                    primary_key=True,
                    default=uuidutils.generate_uuid)
     name = sa.Column(sa.String(80), nullable=False, index=True, unique=True)
+
+    def to_dict(self):
+        dictionary = super(Category, self).to_dict()
+        return dictionary
 
 
 class Tag(Base, TimestampMixin):

@@ -15,20 +15,21 @@
 
 import copy
 import datetime
+import logging
 import os
 import types
+import urlparse
 import uuid
 
 import eventlet.event
-import logging
 
 import murano.common.config as config
+import murano.common.exceptions as exceptions
 import murano.common.messaging as messaging
 import murano.dsl.murano_class as murano_class
 import murano.dsl.murano_object as murano_object
 import murano.dsl.yaql_expression as yaql_expression
 import murano.engine.system.common as common
-
 
 LOG = logging.getLogger(__name__)
 
@@ -42,7 +43,8 @@ class Agent(murano_object.MuranoObject):
     def initialize(self, _context, host):
         self._enabled = False
         if config.CONF.engine.disable_murano_agent:
-            LOG.debug("murano-agent is disabled by the server")
+            LOG.debug('Use of murano-agent is disallowed '
+                      'by the server configuration')
             return
 
         self._environment = self._get_environment(_context)
@@ -62,7 +64,8 @@ class Agent(murano_object.MuranoObject):
     def prepare(self):
         # (sjmc7) - turn this into a no-op if agents are disabled
         if config.CONF.engine.disable_murano_agent:
-            LOG.debug("murano-agent is disabled by the server")
+            LOG.debug('Use of murano-agent is disallowed '
+                      'by the server configuration')
             return
 
         with common.create_rmq_client() as client:
@@ -73,18 +76,17 @@ class Agent(murano_object.MuranoObject):
 
     def _check_enabled(self):
         if config.CONF.engine.disable_murano_agent:
-            raise AgentException(
-                "Use of murano-agent is disallowed "
-                "by the server configuration")
+            raise exceptions.PolicyViolationException(
+                'Use of murano-agent is disallowed '
+                'by the server configuration')
 
-    def _send(self, template, wait_results):
+    def _send(self, template, wait_results, timeout, _context):
         """Send a message over the MQ interface."""
         msg_id = template.get('ID', uuid.uuid4().hex)
         if wait_results:
             event = eventlet.event.Event()
             listener = self._environment.agentListener
-            listener.subscribe(msg_id, event)
-            listener.start()
+            listener.subscribe(msg_id, event, _context)
 
         msg = messaging.Message()
         msg.body = template
@@ -94,35 +96,58 @@ class Agent(murano_object.MuranoObject):
             client.send(message=msg, key=self._queue)
 
         if wait_results:
-            result = event.wait()
+            try:
+                with eventlet.Timeout(timeout):
+                    result = event.wait()
+
+            except eventlet.Timeout:
+                listener.unsubscribe(msg_id)
+                raise exceptions.TimeoutException(
+                    'The Agent does not respond'
+                    'within {0} seconds'.format(timeout))
 
             if not result:
                 return None
 
             if result.get('FormatVersion', '1.0.0').startswith('1.'):
                 return self._process_v1_result(result)
+
             else:
                 return self._process_v2_result(result)
+
         else:
             return None
 
-    def call(self, template, resources):
+    def call(self, template, resources, _context, timeout=600):
         self._check_enabled()
         plan = self.buildExecutionPlan(template, resources)
-        return self._send(plan, True)
+        return self._send(plan, True, timeout, _context)
 
-    def send(self, template, resources):
+    def send(self, template, resources, _context):
         self._check_enabled()
         plan = self.buildExecutionPlan(template, resources)
-        return self._send(plan, False)
+        return self._send(plan, False, 0, _context)
 
-    def callRaw(self, plan):
+    def callRaw(self, plan, _context, timeout=600):
         self._check_enabled()
-        return self._send(plan, True)
+        return self._send(plan, True, timeout, _context)
 
-    def sendRaw(self, plan):
+    def sendRaw(self, plan, _context):
         self._check_enabled()
-        return self._send(plan, False)
+        return self._send(plan, False, 0, _context)
+
+    def isReady(self, _context, timeout=100):
+        try:
+            self.waitReady(_context, timeout)
+        except exceptions.TimeoutException:
+            return False
+        else:
+            return True
+
+    def waitReady(self, _context, timeout=100):
+        self._check_enabled()
+        template = {'Body': 'return', 'FormatVersion': '2.0.0', 'Scripts': {}}
+        self.call(template, False, _context, timeout)
 
     def _process_v1_result(self, result):
         if result['IsException']:
@@ -203,38 +228,92 @@ class Agent(murano_object.MuranoObject):
         files = {}
         for file_id, file_descr in template['Files'].items():
             files[file_descr['Name']] = file_id
+
         for name, script in template.get('Scripts', {}).items():
             if 'EntryPoint' not in script:
                 raise ValueError('No entry point in script ' + name)
-            script['EntryPoint'] = self._place_file(
-                scripts_folder, script['EntryPoint'],
-                template, files, resources)
-            if 'Files' in script:
-                for i in range(0, len(script['Files'])):
-                    script['Files'][i] = self._place_file(
-                        scripts_folder, script['Files'][i],
-                        template, files, resources)
 
+            if 'Application' in script['Type']:
+                script['EntryPoint'] = self._place_file(
+                    scripts_folder, script['EntryPoint'],
+                    template, files, resources)
+            scripts_files = script['Files']
+            script['Files'] = []
+            for file in scripts_files:
+                file_id = self._place_file(scripts_folder, file,
+                                           template, files, resources)
+                if self._is_url(file):
+                    script['Files'].append(file)
+                else:
+                    script['Files'].append(file_id)
         return template
 
-    def _place_file(self, folder, name, template, files, resources):
-        use_base64 = False
-        if name.startswith('<') and name.endswith('>'):
-            use_base64 = True
-            name = name[1:len(name) - 1]
-        if name in files:
-            return files[name]
+    def _is_url(self, file):
+        file = self._get_url(file)
+        parts = urlparse.urlsplit(file)
+        if not parts.scheme or not parts.netloc:
+            return False
+        else:
+            return True
 
+    def _get_url(self, file):
+        if isinstance(file, dict):
+            return file.values()[0]
+        else:
+            return file
+
+    def _get_name(self, file):
+        if isinstance(file, dict):
+            name = file.keys()[0]
+        else:
+            name = file
+
+        if self._is_url(name):
+            name = name[name.rindex('/') + 1:len(name)]
+        elif name.startswith('<') and name.endswith('>'):
+            name = name[1: -1]
+        return name
+
+    def _get_file(self, file):
+        if isinstance(file, dict):
+            return file.values()[0]
+        else:
+            return file
+
+    def _place_file(self, folder, file, template, files, resources):
+        name = self._get_name(file)
+        location = self._get_file(file)
         file_id = uuid.uuid4().hex
-        body_type = 'Base64' if use_base64 else 'Text'
-        body = resources.string(os.path.join(folder, name))
-        if use_base64:
-            body = body.encode('base64')
 
-        template['Files'][file_id] = {
-            'Name': name,
-            'BodyType': body_type,
-            'Body': body
-        }
-        files[name] = file_id
+        if self._is_url(location):
+            key = '='.join((name, location))
+            if key in files:
+                return files[key]
+
+            template['Files'][file_id] = {
+                'Name': name,
+                'URL': location,
+                'Type': 'Downloadable'
+            }
+            files[key] = file_id
+        else:
+            if name in files:
+                return files[name]
+
+            use_base64 = False
+            if location.startswith('<') and location.endswith('>'):
+                use_base64 = True
+                location = location[1: -1]
+
+            body_type = 'Base64' if use_base64 else 'Text'
+            body = resources.string(os.path.join(folder, location))
+            if use_base64:
+                body = body.encode('base64')
+
+            template['Files'][file_id] = {
+                'Name': name,
+                'BodyType': body_type,
+                'Body': body
+            }
+            files[name] = file_id
         return file_id

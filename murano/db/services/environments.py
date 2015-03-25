@@ -12,6 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import yaml
+
+from murano.common import config
 from murano.common import uuidutils
 from murano.db import models
 from murano.db.services import sessions
@@ -19,10 +22,7 @@ from murano.db import session as db_session
 from murano.services import states
 
 
-DEFAULT_NETWORKS = {
-    'environment': 'io.murano.resources.NeutronNetwork',
-    # 'flat': 'io.murano.resources.ExistingNetworkConnector'
-}
+DEFAULT_NETWORK_TYPE = 'io.murano.resources.NeutronNetwork'
 
 
 class EnvironmentServices(object):
@@ -56,7 +56,7 @@ class EnvironmentServices(object):
         :param environment_id: Id of environment for which we checking status.
         :return: Environment status
         """
-        #Deploying: there is at least one valid session with status `deploying`
+        # Deploying: there is at least one valid session with status deploying
         session_list = sessions.SessionServices.get_sessions(environment_id)
         has_opened = False
         for session in session_list:
@@ -70,6 +70,8 @@ class EnvironmentServices(object):
                 return states.EnvironmentStatus.DELETE_FAILURE
             elif session.state == states.SessionState.OPENED:
                 has_opened = True
+            elif session.state == states.SessionState.DEPLOYED:
+                break
         if has_opened:
             return states.EnvironmentStatus.PENDING
 
@@ -77,7 +79,7 @@ class EnvironmentServices(object):
 
     @staticmethod
     def create(environment_params, tenant_id):
-        #tagging environment by tenant_id for later checks
+        # tagging environment by tenant_id for later checks
         """Creates environment with specified params, in particular - name
 
            :param environment_params: Dict, e.g. {'name': 'env-name'}
@@ -89,8 +91,9 @@ class EnvironmentServices(object):
             'id': uuidutils.generate_uuid(),
         }}
         objects.update(environment_params)
-        objects.update(
-            EnvironmentServices.generate_default_networks(objects['name']))
+        if not objects.get('defaultNetworks'):
+            objects['defaultNetworks'] = \
+                EnvironmentServices.generate_default_networks(objects['name'])
         objects['?']['type'] = 'io.murano.Environment'
         environment_params['tenant_id'] = tenant_id
 
@@ -106,7 +109,7 @@ class EnvironmentServices(object):
         with unit.begin():
             unit.add(environment)
 
-        #saving environment as Json to itself
+        # saving environment as Json to itself
         environment.update({'description': data})
         environment.save(unit)
 
@@ -194,22 +197,29 @@ class EnvironmentServices(object):
 
     @staticmethod
     def generate_default_networks(env_name):
+        net_config = config.CONF.find_file(
+            config.CONF.networking.network_config_file)
+        if net_config:
+            with open(net_config) as f:
+                data = yaml.safe_load(f)
+                return EnvironmentServices._objectify(data, {
+                    'ENV': env_name
+                })
+
         # TODO(ativelkov):
         # This is a temporary workaround. Need to find a better way:
         # These objects have to be created in runtime when the environment is
         # deployed for the first time. Currently there is no way to persist
         # such changes, so we have to create the objects on the API side
         return {
-            'defaultNetworks': {
-                'environment': {
-                    '?': {
-                        'id': uuidutils.generate_uuid(),
-                        'type': DEFAULT_NETWORKS['environment']
-                    },
-                    'name': env_name + '-network'
+            'environment': {
+                '?': {
+                    'id': uuidutils.generate_uuid(),
+                    'type': DEFAULT_NETWORK_TYPE
                 },
-                'flat': None
-            }
+                'name': env_name + '-network'
+            },
+            'flat': None
         }
 
     @staticmethod
@@ -222,3 +232,21 @@ class EnvironmentServices(object):
             EnvironmentServices.remove(session.environment_id)
         else:
             sessions.SessionServices.deploy(session, environment, unit, token)
+
+    @staticmethod
+    def _objectify(data, replacements):
+        if isinstance(data, dict):
+            if isinstance(data.get('?'), dict):
+                data['?']['id'] = uuidutils.generate_uuid()
+            result = {}
+            for key, value in data.iteritems():
+                result[key] = EnvironmentServices._objectify(
+                    value, replacements)
+            return result
+        elif isinstance(data, list):
+            return [EnvironmentServices._objectify(v, replacements)
+                    for v in data]
+        elif isinstance(data, (str, unicode)):
+            for key, value in replacements.iteritems():
+                data = data.replace('%' + key + '%', value)
+        return data

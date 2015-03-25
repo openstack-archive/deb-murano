@@ -34,6 +34,7 @@ MURANO_CONF_DIR=${MURANO_CONF_DIR:-/etc/murano}
 MURANO_CONF_FILE=${MURANO_CONF_DIR}/murano.conf
 MURANO_POLICY_FILE=${MURANO_CONF_DIR}/policy.json
 MURANO_DEBUG=${MURANO_DEBUG:-True}
+MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT=${MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT:-False}
 
 MURANO_SERVICE_HOST=${MURANO_SERVICE_HOST:-$SERVICE_HOST}
 MURANO_SERVICE_PORT=${MURANO_SERVICE_PORT:-8082}
@@ -42,6 +43,9 @@ MURANO_SERVICE_PROTOCOL=${MURANO_SERVICE_PROTOCOL:-$SERVICE_PROTOCOL}
 MURANO_ADMIN_USER=${MURANO_ADMIN_USER:-murano}
 
 MURANO_KEYSTONE_SIGNING_DIR=${MURANO_KEYSTONE_SIGNING_DIR:-/tmp/keystone-signing-muranoapi}
+
+MURANO_DEFAULT_ROUTER=${MURANO_DEFAULT_ROUTER:-''}
+MURANO_EXTERNAL_NETWORK=${MURANO_EXTERNAL_NETWORK:-''}
 
 # MURANO_RABBIT_VHOST allows to specify a separate virtual host for Murano services.
 # This is not required if all OpenStack services are deployed by devstack scripts
@@ -126,6 +130,32 @@ function configure_murano_rpc_backend() {
     fi
 }
 
+function configure_murano_networking {
+    # Use keyword 'public' if Murano external network was not set.
+    # If it was set but the network is not exist then
+    # first available external network will be selected.
+    local ext_net=${MURANO_EXTERNAL_NETWORK:-'public'}
+    local ext_net_id=$(neutron net-external-list \
+            | grep " $ext_net " | get_field 2)
+
+    # Try to select first available external network
+    if [[ -n "$ext_net_id" ]]; then
+        ext_net_id=$(neutron net-external-list -f csv -c id \
+            | tail -n +2 | tail -n 1)
+    fi
+
+    # Configure networking options for Murano
+    if [[ -n "$ext_net" ]] && [[ -n "$ext_net_id" ]]; then
+        iniset $MURANO_CONF_FILE networking external_network $ext_net_id
+        iniset $MURANO_CONF_FILE networking create_router 'true'
+    else
+        iniset $MURANO_CONF_FILE networking create_router 'false'
+    fi
+
+    if [[ -n "$MURANO_DEFAULT_ROUTER" ]]; then
+        iniset $MURANO_CONF_FILE networking router_name $MURANO_DEFAULT_ROUTER
+    fi
+}
 
 # Entry points
 # ------------
@@ -148,6 +178,10 @@ function configure_murano {
     iniset $MURANO_CONF_FILE DEFAULT debug $MURANO_DEBUG
     iniset $MURANO_CONF_FILE DEFAULT use_syslog $SYSLOG
 
+    # Murano Policy Enforcement Configuration
+    if [[ -n "$MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT" ]]; then
+        iniset $MURANO_CONF_FILE engine enable_model_policy_enforcer $MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT
+    fi
 
     # Murano Api Configuration
     #-------------------------
@@ -180,6 +214,8 @@ function configure_murano {
 
 # init_murano() - Initialize databases, etc.
 function init_murano() {
+    configure_murano_networking
+
     # (re)create Murano database
     recreate_database murano utf8
 

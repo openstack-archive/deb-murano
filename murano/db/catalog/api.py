@@ -21,7 +21,7 @@ from webob import exc
 
 from murano.db import models
 from murano.db import session as db_session
-from murano.openstack.common.gettextutils import _
+from murano.common.i18n import _, _LW
 from murano.openstack.common import log as logging
 
 CONF = cfg.CONF
@@ -54,26 +54,24 @@ def _package_get(package_id_or_name, session):
         msg = _("Package id or name '{0}' not found").\
             format(package_id_or_name)
         LOG.error(msg)
-        raise exc.HTTPNotFound(msg)
+        raise exc.HTTPNotFound(explanation=msg)
 
     return package
 
 
 def _authorize_package(package, context, allow_public=False):
-    if context.is_admin:
-        return
 
     if package.owner_id != context.tenant:
         if not allow_public:
             msg = _("Package '{0}' is not owned by "
                     "tenant '{1}'").format(package.id, context.tenant)
             LOG.error(msg)
-            raise exc.HTTPForbidden(msg)
+            raise exc.HTTPForbidden(explanation=msg)
         if not package.is_public:
             msg = _("Package '{0}' is not public and not owned by "
                     "tenant '{1}' ").format(package.id, context.tenant)
             LOG.error(msg)
-            raise exc.HTTPForbidden(msg)
+            raise exc.HTTPForbidden(explanation=msg)
 
 
 def package_get(package_id_or_name, context):
@@ -104,7 +102,7 @@ def _get_categories(category_names, session=None):
             msg = _("Category '{name}' doesn't exist").format(name=ctg_name)
             LOG.error(msg)
             # it's not allowed to specify non-existent categories
-            raise exc.HTTPBadRequest(msg)
+            raise exc.HTTPBadRequest(explanation=msg)
 
         categories.append(ctg_obj)
     return categories
@@ -174,8 +172,8 @@ def _do_add(package, change):
         try:
             getattr(package, path).append(item)
         except AssertionError:
-            msg = _('One of the specified {0} is already '
-                    'associated with a package. Doing nothing.')
+            msg = _LW('One of the specified {0} is already '
+                      'associated with a package. Doing nothing.')
             LOG.warning(msg.format(path))
     return package
 
@@ -196,10 +194,31 @@ def _do_remove(package, change):
             msg = _("Value '{0}' of property '{1}' "
                     "does not exist.").format(value, path)
             LOG.error(msg)
-            raise exc.HTTPNotFound(msg)
+            raise exc.HTTPNotFound(explanation=msg)
         item_to_remove = find(current_values, lambda i: i.name == value)
         current_values.remove(item_to_remove)
     return package
+
+
+def _get_packages_for_category(session, category_id):
+    """Return detailed list of packages, belonging to the provided category
+    :param session:
+    :param category_id:
+    :return: list of dictionaries, containing id, name and package frn
+    """
+    pkg = models.Package
+    packages = (session.query(pkg.id, pkg.name, pkg.fully_qualified_name)
+                .filter(pkg.categories
+                        .any(models.Category.id == category_id))
+                .all())
+
+    result_packages = []
+    for package in packages:
+        id, name, fqn = package
+        result_packages.append({'id': id,
+                                'name': name,
+                                'fully_qualified_name': fqn})
+    return result_packages
 
 
 def package_update(pkg_id_or_name, changes, context):
@@ -249,7 +268,7 @@ def package_search(filters, context, limit=None):
 
     if context.is_admin:
         if not include_disabled:
-            #NOTE(efedorova): is needed for SA 0.7.9, but could be done
+            # NOTE(efedorova): is needed for SA 0.7.9, but could be done
             # simpler in SA 0.8. See http://goo.gl/9stlKu for a details
             query = session.query(pkg).filter(pkg.__table__.c.enabled)
         else:
@@ -359,6 +378,24 @@ def package_delete(package_id_or_name, context):
         session.delete(package)
 
 
+def category_get(category_id, session=None, packages=False):
+    """Return category details
+       :param category_id: ID of a category, string
+       :returns: detailed information about category, dict
+    """
+    if not session:
+        session = db_session.get_session()
+
+    category = session.query(models.Category).get(category_id)
+    if not category:
+        msg = _("Category id or '{0}' not found").format(category_id)
+        LOG.error(msg)
+        raise exc.HTTPNotFound(msg)
+    if packages:
+        category.packages = _get_packages_for_category(session, category_id)
+    return category
+
+
 def categories_list():
     session = db_session.get_session()
     return session.query(models.Category).all()
@@ -382,3 +419,16 @@ def category_add(category_name):
         category.save(session)
 
     return category
+
+
+def category_delete(category_id):
+    """Delete a category by ID."""
+    session = db_session.get_session()
+
+    with session.begin():
+        category = session.query(models.Category).get(category_id)
+        if not category:
+            msg = _("Category id '{0}' not found").format(category_id)
+            LOG.error(msg)
+            raise exc.HTTPNotFound(msg)
+        session.delete(category)

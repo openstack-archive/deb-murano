@@ -63,16 +63,27 @@ class TestActionsApi(tb.ControllerTest, tb.MuranoApiTestCase):
         test_utils.save_models(e)
 
         rpc_task = {
-            'tenant_id': self.tenant,
-            'model': {'Objects': {'applications': [], '?':
-            {
-                '_actions': {'actionsID_action': {
-                'name': 'Testaction', 'enabled': True}},
-                'id': '12345'}}, 'Attributes': {}},
             'action': {
+                'args': '{}',
                 'method': 'Testaction',
-                'object_id': '12345',
-                'args': '{}'},
+                'object_id': '12345'
+            },
+            'tenant_id': self.tenant,
+            'model': {
+                'Attributes': {},
+                'Objects': {
+                    'applications': [],
+                    '?': {
+                        '_actions': {
+                            'actionsID_action': {
+                                'enabled': True,
+                                'name': 'Testaction'
+                            }
+                        },
+                        'id': '12345'
+                    }
+                }
+            },
             'token': None,
             'id': '12345'
         }
@@ -83,5 +94,4 @@ class TestActionsApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
         self.mock_engine_rpc.handle_task.assert_called_once_with(rpc_task)
 
-        # Should this be expected behavior?
-        self.assertEqual(None, result)
+        self.assertIn('task_id', result)

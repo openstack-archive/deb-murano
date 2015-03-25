@@ -64,6 +64,7 @@ contribute to the project.
    murano_pl/murano_pl_index
    articles/dynamic_ui
    articles/workflow
+   articles/policy_enf_index
 
 
 **Tutorials**
@@ -84,6 +85,7 @@ contribute to the project.
    contributing
    guidelines
    articles/debug_tips
+   articles/app_migrating
 
 
 **API specification**

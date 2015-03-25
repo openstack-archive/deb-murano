@@ -18,7 +18,6 @@ from oslo import messaging
 from oslo.messaging.notify import dispatcher as oslo_dispatcher
 from oslo.messaging import target
 from oslo.utils import timeutils
-
 from sqlalchemy import desc
 
 from murano.common import config
@@ -27,7 +26,7 @@ from murano.db import models
 from murano.db.services import environments
 from murano.db.services import instances
 from murano.db import session
-from murano.openstack.common.gettextutils import _
+from murano.common.i18n import _, _LI, _LW
 from murano.openstack.common import log as logging
 from murano.services import states
 
@@ -45,19 +44,22 @@ class ResultEndpoint(object):
         LOG.debug('Got result from orchestration '
                   'engine:\n{0}'.format(secure_result))
 
+        model = result['model']
+        action_result = result.get('action', {})
+
         unit = session.get_session()
         environment = unit.query(models.Environment).get(environment_id)
 
         if not environment:
-            LOG.warning(_('Environment result could not be handled, specified '
-                          'environment was not found in database'))
+            LOG.warning(_LW('Environment result could not be handled, '
+                            'specified environment not found in database'))
             return
 
-        if result['Objects'] is None and result.get('ObjectsCopy', {}) is None:
+        if model['Objects'] is None and model.get('ObjectsCopy', {}) is None:
             environments.EnvironmentServices.remove(environment_id)
             return
 
-        environment.description = result
+        environment.description = model
         if environment.description['Objects'] is not None:
             environment.description['Objects']['services'] = \
                 environment.description['Objects'].pop('applications', [])
@@ -70,9 +72,10 @@ class ResultEndpoint(object):
         environment.version += 1
         environment.save(unit)
 
-        #close deployment
+        # close deployment
         deployment = get_last_deployment(unit, environment.id)
         deployment.finished = timeutils.utcnow()
+        deployment.result = action_result
 
         num_errors = unit.query(models.Status)\
             .filter_by(level='error', task_id=deployment.id).count()
@@ -93,7 +96,7 @@ class ResultEndpoint(object):
         deployment.statuses.append(status)
         deployment.save(unit)
 
-        #close session
+        # close session
         conf_session = unit.query(models.Session).filter_by(
             **{'environment_id': environment.id,
                'state': states.SessionState.DEPLOYING if not deleted
@@ -105,6 +108,18 @@ class ResultEndpoint(object):
         else:
             conf_session.state = states.SessionState.DEPLOYED
         conf_session.save(unit)
+
+        # output application tracking information
+        message = _LI('EnvId: {0} TenantId: {1} Status: {2} Apps: {3}').format(
+            environment.id,
+            environment.tenant_id,
+            _('Failed') if num_errors + num_warnings > 0 else _('Successful'),
+            ', '.join(map(
+                lambda a: a['?']['type'],
+                model['Objects']['services']
+            ))
+        )
+        LOG.info(message)
 
 
 def notification_endpoint_wrapper(priority='info'):
@@ -162,7 +177,7 @@ def report_notification(report):
     status.update(report)
 
     unit = session.get_session()
-    #connect with deployment
+    # connect with deployment
     with unit.begin():
         running_deployment = get_last_deployment(unit,
                                                  status.environment_id)
