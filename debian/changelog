@@ -1,4 +1,4 @@
-murano (2015.1~b1-1) UNRELEASED; urgency=medium
+murano (2015.1~b3-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Reviewed (build-)depends for this release.
