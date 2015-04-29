@@ -1,2 +1,2 @@
-disable-failing-tests.patch
+#disable-failing-tests.patch
 remove-the-use-of-PROTOCOL_SSLv3.patch
