@@ -1,0 +1,15 @@
+Description: Run only unit tests, not functional
+Author: Thomas Goirand <zigo@debian.org>
+Forwarded: not-needed
+Last-Update: 2015-04-29
+
+--- murano-2015.1~rc1.orig/.testr.conf
++++ murano-2015.1~rc1/.testr.conf
+@@ -2,6 +2,6 @@
+ test_command=OS_STDOUT_CAPTURE=${OS_STDOUT_CAPTURE:-1} \
+              OS_STDERR_CAPTURE=${OS_STDERR_CAPTURE:-1} \
+              OS_TEST_TIMEOUT=${OS_TEST_TIMEOUT:-60} \
+-             ${PYTHON:-python} -m subunit.run discover $DISCOVER_DIRECTORY $LISTOPT $IDOPTION
++             ${PYTHON:-python} -m subunit.run discover -t ./ ./murano/tests/unit $LISTOPT $IDOPTION
+ test_id_option=--load-list $IDFILE
+ test_list_option=--list
