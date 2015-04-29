@@ -16,14 +16,19 @@
 import cgi
 import cStringIO
 import imghdr
-import mock
+import json
 import os
+
+import mock
+from oslo.utils import timeutils
 
 from murano.api.v1 import catalog
 from murano.common import policy
 from murano.db.catalog import api as db_catalog_api
+from murano.db import models
 from murano.packages import load_utils
 import murano.tests.unit.api.base as test_base
+import murano.tests.unit.utils as test_utils
 
 
 class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
@@ -55,7 +60,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
             'ui_definition': pkg.raw_ui,
             'class_definitions': pkg.classes,
             'archive': pkg.blob,
-            'categories': []
+            'categories': [],
         }
         return pkg, package
 
@@ -85,13 +90,16 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
     def test_add_public_unauthorized(self):
         policy.set_rules({
             'upload_package': '@',
-            'publicize_package': 'role:is_admin or is_admin:True'
+            'publicize_package': 'is_admin:True',
+            'delete_package': 'is_admin:True',
         })
 
         self.expect_policy_check('upload_package')
-        self.expect_policy_check('publicize_image')
+        self.expect_policy_check('delete_package', mock.ANY)
         self.expect_policy_check('upload_package')
-        self.expect_policy_check('publicize_image')
+        self.expect_policy_check('publicize_package')
+        self.expect_policy_check('upload_package')
+        self.expect_policy_check('publicize_package')
 
         file_obj_str = cStringIO.StringIO("This is some dummy data")
         file_obj = mock.MagicMock(cgi.FieldStorage)
@@ -101,33 +109,111 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         body = '''\
 
 --BOUNDARY
-Content-Disposition: form-data; name="ziparchive"
-Content-Type: text/plain:
+Content-Disposition: form-data; name="__metadata__"
+
+{0}
+--BOUNDARY
+Content-Disposition: form-data; name="ziparchive"; filename="file.zip"
 
 This is a fake zip archive
---BOUNDARY
-Content-Disposition: form-data; name="metadata"; filename="test.json"
-Content-Type: application/json
-
-%s
---BOUNDARY--''' % package_metadata
+--BOUNDARY--'''
 
         with mock.patch('murano.packages.load_utils.load_from_file') as lff:
             lff.return_value = package_from_dir
+
+            # Uploading a non-public package
             req = self._post(
                 '/catalog/packages',
-                body,
+                body.format(json.dumps({'is_public': False})),
                 content_type='multipart/form-data; ; boundary=BOUNDARY',
-                params={"is_public": "true"})
+            )
+            res = req.get_response(self.api)
+            self.assertEqual(200, res.status_code)
+
+            self.is_admin = True
+            app_id = json.loads(res.body)['id']
+            req = self._delete('/catalog/packages/{0}'.format(app_id))
             res = req.get_response(self.api)
 
-            # Nobody has access to upload public images
+            self.is_admin = False
+            # Uploading a public package fails
+            req = self._post(
+                '/catalog/packages',
+                body.format(json.dumps({'is_public': True})),
+                content_type='multipart/form-data; ; boundary=BOUNDARY',
+            )
+            res = req.get_response(self.api)
             self.assertEqual(403, res.status_code)
 
+            # Uploading a public package passes for admin
             self.is_admin = True
             req = self._post(
                 '/catalog/packages',
-                body,
+                body.format(json.dumps({'is_public': True})),
                 content_type='multipart/form-data; ; boundary=BOUNDARY',
-                params={"is_public": "true"})
+            )
             res = req.get_response(self.api)
+            self.assertEqual(200, res.status_code)
+
+    def test_add_category(self):
+        """Check that category added successfully
+        """
+
+        self._set_policy_rules({'add_category': '@'})
+        self.expect_policy_check('add_category')
+
+        fake_now = timeutils.utcnow()
+        timeutils.utcnow.override_time = fake_now
+
+        expected = {
+            'name': 'new_category',
+            'created': timeutils.isotime(fake_now)[:-1],
+            'updated': timeutils.isotime(fake_now)[:-1],
+            'package_count': 0,
+        }
+
+        body = {'name': 'new_category'}
+        req = self._post('/catalog/categories', json.dumps(body))
+        result = req.get_response(self.api)
+        processed_result = json.loads(result.body)
+        self.assertIn('id', processed_result.keys())
+        expected['id'] = processed_result['id']
+        self.assertDictEqual(expected, processed_result)
+
+    def test_delete_category(self):
+        """Check that category deleted successfully
+        """
+
+        self._set_policy_rules({'delete_category': '@'})
+        self.expect_policy_check('delete_category',
+                                 {'category_id': '12345'})
+
+        fake_now = timeutils.utcnow()
+        expected = {'name': 'new_category',
+                    'created': fake_now,
+                    'updated': fake_now,
+                    'id': '12345'}
+
+        e = models.Category(**expected)
+        test_utils.save_models(e)
+
+        req = self._delete('/catalog/categories/12345')
+        processed_result = req.get_response(self.api)
+        self.assertEqual('', processed_result.body)
+        self.assertEqual(200, processed_result.status_code)
+
+    def test_add_category_failed_for_non_admin(self):
+        """Check that non admin user couldn't add new category
+        """
+
+        self._set_policy_rules({'add_category': 'role:context_admin'})
+        self.is_admin = False
+        self.expect_policy_check('add_category')
+
+        fake_now = timeutils.utcnow()
+        timeutils.utcnow.override_time = fake_now
+
+        body = {'name': 'new_category'}
+        req = self._post('/catalog/categories', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(403, result.status_code)

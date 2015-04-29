@@ -16,13 +16,12 @@ from webob import exc
 
 from murano.api.v1 import request_statistics
 from murano.common.helpers import token_sanitizer
+from murano.common.i18n import _LI
 from murano.common import policy
 from murano.common import utils
 from murano.common import wsgi
 from murano.db import models
 from murano.db import session as db_session
-
-from murano.openstack.common.gettextutils import _
 from murano.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
@@ -42,9 +41,6 @@ class Controller(object):
             .filter_by(environment_id=environment_id) \
             .order_by(desc(models.Task.created))
         result = query.all()
-        # show only tasks with 'deploy' action
-        result = [task for task in result
-                  if (task.action or {}).get('method', 'deploy') == 'deploy']
         deployments = [set_dep_state(deployment, unit).to_dict() for deployment
                        in result]
         return {'deployments': deployments}
@@ -82,11 +78,13 @@ class Controller(object):
 def verify_and_get_env(db_session, environment_id, request):
     environment = db_session.query(models.Environment).get(environment_id)
     if not environment:
-        LOG.info(_('Environment with id {0} not found').format(environment_id))
+        LOG.info(_LI(
+            'Environment with id {0} not found').format(environment_id))
         raise exc.HTTPNotFound
 
     if environment.tenant_id != request.context.tenant:
-        LOG.info(_('User is not authorized to access this tenant resources.'))
+        LOG.info(_LI(
+            'User is not authorized to access this tenant resources.'))
         raise exc.HTTPUnauthorized
     return environment
 
@@ -99,12 +97,12 @@ def _patch_description(description):
 def verify_and_get_deployment(db_session, environment_id, deployment_id):
     deployment = db_session.query(models.Task).get(deployment_id)
     if not deployment:
-        LOG.info(_('Deployment with id {0} not found').format(deployment_id))
+        LOG.info(_LI('Deployment with id {0} not found').format(deployment_id))
         raise exc.HTTPNotFound
     if deployment.environment_id != environment_id:
-        LOG.info(_('Deployment with id {0} not found'
-                   ' in environment {1}').format(deployment_id,
-                                                 environment_id))
+        LOG.info(_LI('Deployment with id {0} not found'
+                     ' in environment {1}').format(deployment_id,
+                                                   environment_id))
         raise exc.HTTPBadRequest
 
     deployment.description = _patch_description(deployment.description)

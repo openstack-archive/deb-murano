@@ -31,18 +31,20 @@ Key goal is to provide UI and API which allows to compose and deploy composite
 environments on the Application abstraction level and then manage their
 lifecycle.
 
-Murano consists of three source code repositories:
+Murano consists of several source code repositories:
     * `murano`_ - is the main repository. It contains code for Murano API
       server, Murano engine and MuranoPL
     * `murano-agent`_ - agent which runs on guest VMs and executes deployment
       plan
     * `murano-dashboard`_ - Murano UI implemented as a plugin for OpenStack
       Dashboard
+    * `python-muranoclient`_ - Client library and CLI client for Murano
 
 
-.. _murano: https://git.openstack.org/cgit/stackforge/murano/
-.. _murano-agent: https://git.openstack.org/cgit/stackforge/murano-agent/
-.. _murano-dashboard: https://git.openstack.org/cgit/stackforge/murano-dashboard/
+.. _murano: https://git.openstack.org/cgit/openstack/murano/
+.. _murano-agent: https://git.openstack.org/cgit/openstack/murano-agent/
+.. _murano-dashboard: https://git.openstack.org/cgit/openstack/murano-dashboard/
+.. _python-muranoclient: https://git.openstack.org/cgit/openstack/python-muranoclient/
 
 
 This documentation offers information on how Murano works and how to
@@ -64,6 +66,7 @@ contribute to the project.
    murano_pl/murano_pl_index
    articles/dynamic_ui
    articles/workflow
+   articles/policy_enf_index
 
 
 **Tutorials**
@@ -76,6 +79,20 @@ contribute to the project.
    image_builders/index
    articles/test_docs
 
+**Client**
+
+.. toctree::
+   :maxdepth: 1
+
+   articles/client
+
+**Repository**
+
+.. toctree::
+   :maxdepth: 1
+
+   articles/repository
+
 **Guidelines**
 
 .. toctree::
@@ -84,6 +101,7 @@ contribute to the project.
    contributing
    guidelines
    articles/debug_tips
+   articles/app_migrating
 
 
 **API specification**

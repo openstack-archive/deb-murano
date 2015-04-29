@@ -22,7 +22,7 @@ import eventlet
 import eventlet.event
 import yaql.context
 
-
+from murano.common.i18n import _
 import murano.dsl.attribute_store as attribute_store
 import murano.dsl.dsl_exception as dsl_exception
 import murano.dsl.expressions as expressions
@@ -32,7 +32,6 @@ import murano.dsl.murano_object as murano_object
 import murano.dsl.object_store as object_store
 import murano.dsl.principal_objects.stack_trace as trace
 import murano.dsl.yaql_functions as yaql_functions
-
 from murano.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
@@ -88,9 +87,9 @@ class MuranoDslExecutor(object):
         # TODO(slagun): check method accessibility from murano_class
 
         if not external_call and is_special_method:
-            LOG.deprecated('initialize/destroy methods are called '
-                           'automatically by engine. This call is no-op '
-                           'and will become exception in the future')
+            LOG.deprecated(_('initialize/destroy methods are called '
+                             'automatically by engine. This call is no-op '
+                             'and will become exception in the future'))
             return None
 
         # restore this from upcast object (no change if there was no upcast)

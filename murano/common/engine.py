@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import traceback
 import uuid
 
 import eventlet.debug
@@ -20,23 +21,27 @@ from oslo import messaging
 from oslo.messaging import target
 from oslo.serialization import jsonutils
 
+from murano.common import auth_utils
 from murano.common import config
 from murano.common.helpers import token_sanitizer
+from murano.common import plugin_loader
 from murano.common import rpc
 from murano.dsl import dsl_exception
 from murano.dsl import executor
-from murano.dsl import results_serializer
-from murano.engine import auth_utils
+from murano.dsl import serializer
 from murano.engine import client_manager
 from murano.engine import environment
 from murano.engine import package_class_loader
 from murano.engine import package_loader
 from murano.engine.system import status_reporter
 import murano.engine.system.system_objects as system_objects
-from murano.openstack.common.gettextutils import _
+from murano.common.i18n import _LI, _LE
 from murano.openstack.common import log as logging
+from murano.policy import model_policy_enforcer as enforcer
+
 
 RPC_SERVICE = None
+PLUGIN_LOADER = None
 
 LOG = logging.getLogger(__name__)
 
@@ -47,16 +52,17 @@ class TaskProcessingEndpoint(object):
     @staticmethod
     def handle_task(context, task):
         s_task = token_sanitizer.TokenSanitizer().sanitize(task)
-        LOG.info(_('Starting processing task: {task_desc}').format(
+        LOG.info(_LI('Starting processing task: {task_desc}').format(
             task_desc=jsonutils.dumps(s_task)))
 
-        result = task['model']
+        result = {'model': task['model']}
         try:
             task_executor = TaskExecutor(task)
             result = task_executor.execute()
         except Exception as e:
-            LOG.exception('Error during task execution for tenant %s',
+            LOG.exception(_LE('Error during task execution for tenant %s'),
                           task['tenant_id'])
+            result['action'] = TaskExecutor.exception_result(e)
             msg_env = Environment(task['id'])
             reporter = status_reporter.StatusReporter()
             reporter.initialize(msg_env)
@@ -81,7 +87,15 @@ def get_rpc_service():
     return RPC_SERVICE
 
 
-class Environment:
+def get_plugin_loader():
+    global PLUGIN_LOADER
+
+    if PLUGIN_LOADER is None:
+        PLUGIN_LOADER = plugin_loader.PluginLoader()
+    return PLUGIN_LOADER
+
+
+class Environment(object):
     def __init__(self, object_id):
         self.object_id = object_id
 
@@ -108,17 +122,25 @@ class TaskExecutor(object):
         self._environment.system_attributes = self._model.get('SystemData', {})
         self._environment.clients = client_manager.ClientManager()
 
+        self._model_policy_enforcer = enforcer.ModelPolicyEnforcer(
+            self._environment)
+
     def execute(self):
         self._create_trust()
 
         try:
+            # !!! please do not delete 2 commented lines of code below.
+            # Uncomment to make engine load packages from
+            # local folder rather than from API !!!
+
             # pkg_loader = package_loader.DirectoryPackageLoader('./meta')
             # return self._execute(pkg_loader)
 
             murano_client_factory = lambda: \
                 self._environment.clients.get_murano_client(self._environment)
             with package_loader.ApiPackageLoader(
-                    murano_client_factory) as pkg_loader:
+                    murano_client_factory,
+                    self._environment.tenant_id) as pkg_loader:
                 return self._execute(pkg_loader)
         finally:
             if self._model['Objects'] is None:
@@ -127,48 +149,99 @@ class TaskExecutor(object):
     def _execute(self, pkg_loader):
         class_loader = package_class_loader.PackageClassLoader(pkg_loader)
         system_objects.register(class_loader, pkg_loader)
+        get_plugin_loader().register_in_loader(class_loader)
 
         exc = executor.MuranoDslExecutor(class_loader, self.environment)
         obj = exc.load(self.model)
 
+        self._validate_model(obj, self.action, class_loader)
+        action_result = None
+        exception = None
+        exception_traceback = None
         try:
-            # Skip execution of action in case of no action is provided.
+            LOG.info(_LI('Invoking pre-execution hooks'))
+            self.environment.start()
+            # Skip execution of action in case no action is provided.
             # Model will be just loaded, cleaned-up and unloaded.
             # Most of the time this is used for deletion of environments.
             if self.action:
-                self._invoke(exc)
+                action_result = self._invoke(exc)
         except Exception as e:
+            exception = e
             if isinstance(e, dsl_exception.MuranoPlException):
                 LOG.error('\n' + e.format(prefix='  '))
             else:
-                LOG.exception(e)
+                exception_traceback = traceback.format_exc()
+                LOG.exception(
+                    _LE("Exception %(exc)s occured"
+                        " during invocation of %(method)s"),
+                    {'exc': e, 'method': self.action['method']})
             reporter = status_reporter.StatusReporter()
             reporter.initialize(obj)
             reporter.report_error(obj, str(e))
+        finally:
+            LOG.info(_LI('Invoking post-execution hooks'))
+            self.environment.finish()
 
-        result = results_serializer.serialize(obj, exc)
-        result['SystemData'] = self._environment.system_attributes
+        model = serializer.serialize_model(obj, exc)
+        model['SystemData'] = self._environment.system_attributes
+        result = {
+            'model': model,
+            'action': {
+                'result': None,
+                'isException': False
+            }
+        }
+        if exception is not None:
+            result['action'] = TaskExecutor.exception_result(
+                exception, exception_traceback)
+        else:
+            result['action']['result'] = serializer.serialize_object(
+                action_result)
+
         return result
+
+    @staticmethod
+    def exception_result(exception, exception_traceback=None):
+        record = {
+            'isException': True,
+            'result': {
+                'message': str(exception),
+            }
+        }
+        if isinstance(exception, dsl_exception.MuranoPlException):
+            record['result']['details'] = exception.format()
+        else:
+            record['result']['details'] = exception_traceback
+        return record
+
+    def _validate_model(self, obj, action, class_loader):
+        if config.CONF.engine.enable_model_policy_enforcer:
+            if obj is not None:
+                if action is not None and action['method'] == 'deploy':
+                    self._model_policy_enforcer.validate(obj.to_dictionary(),
+                                                         class_loader)
 
     def _invoke(self, mpl_executor):
         obj = mpl_executor.object_store.get(self.action['object_id'])
         method_name, args = self.action['method'], self.action['args']
 
         if obj is not None:
-            obj.type.invoke(method_name, mpl_executor, obj, args)
+            return obj.type.invoke(method_name, mpl_executor, obj, args)
 
     def _create_trust(self):
         if not config.CONF.engine.use_trusts:
             return
         trust_id = self._environment.system_attributes.get('TrustId')
         if not trust_id:
-            trust_id = auth_utils.create_trust(self._environment)
+            trust_id = auth_utils.create_trust(self._environment.token,
+                                               self._environment.tenant_id)
             self._environment.system_attributes['TrustId'] = trust_id
         self._environment.trust_id = trust_id
 
     def _delete_trust(self):
         trust_id = self._environment.trust_id
         if trust_id:
-            auth_utils.delete_trust(self._environment)
+            auth_utils.delete_trust(self._environment.trust_id)
             self._environment.system_attributes['TrustId'] = None
             self._environment.trust_id = None

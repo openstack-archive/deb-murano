@@ -14,16 +14,15 @@
 
 import os
 import uuid
-import zipfile
 
 from tempest.test import attr
-
-from tempest import exceptions
+from tempest_lib import exceptions
 
 from murano.tests.functional.api import base
+from murano.tests.functional.common import utils as common_utils
 
 
-class TestCaseRepository(base.TestCase):
+class TestCaseRepository(base.TestCase, common_utils.ZipUtilsMixin):
 
     @classmethod
     def setUpClass(cls):
@@ -33,15 +32,7 @@ class TestCaseRepository(base.TestCase):
         cls.location = os.path.realpath(
             os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-        __folderpath__ = os.path.join(cls.location, "DummyTestApp")
-        __rootlen__ = len(__folderpath__) + 1
-
-        with zipfile.ZipFile(os.path.join(cls.location,
-                                          "DummyTestApp.zip"), "w") as zf:
-            for dirname, _, files in os.walk(__folderpath__):
-                for filename in files:
-                    fn = os.path.join(dirname, filename)
-                    zf.write(fn, fn[__rootlen__:])
+        cls.zip_dir(cls.location, "DummyTestApp")
 
     def setUp(self):
         super(TestCaseRepository, self).setUp()
@@ -191,6 +182,7 @@ class TestRepositoryNegativeForbidden(base.NegativeTestCase,
         super(TestRepositoryNegativeForbidden, cls).tearDownClass()
 
         cls.client.delete_package(cls.package['id'])
+        cls.purge_creds()
 
     @attr(type='negative')
     def test_update_package_from_another_tenant(self):
@@ -202,38 +194,38 @@ class TestRepositoryNegativeForbidden(base.NegativeTestCase,
             }
         ]
 
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.update_package,
                           self.package['id'],
                           post_body)
 
     @attr(type='negative')
     def test_get_package_from_another_tenant(self):
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.get_package,
                           self.package['id'])
 
     @attr(type='negative')
     def test_delete_package_from_another_tenant(self):
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.delete_package,
                           self.package['id'])
 
     @attr(type='negative')
     def test_download_package_from_another_tenant(self):
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.download_package,
                           self.package['id'])
 
     @attr(type='negative')
     def test_get_ui_definition_from_another_tenant(self):
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.get_ui_definition,
                           self.package['id'])
 
     @attr(type='negative')
     def test_get_logo_from_another_tenant(self):
-        self.assertRaises(exceptions.Unauthorized,
+        self.assertRaises(exceptions.Forbidden,
                           self.alt_client.get_logo,
                           self.package['id'])
 

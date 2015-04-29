@@ -22,6 +22,8 @@ from murano.api.v1 import instance_statistics
 from murano.api.v1 import request_statistics
 from murano.api.v1 import services
 from murano.api.v1 import sessions
+from murano.api.v1 import template_applications
+from murano.api.v1 import templates
 from murano.common import wsgi
 
 
@@ -94,6 +96,50 @@ class API(wsgi.Router):
                        action='last',
                        conditions={'method': ['GET']})
 
+        templates_resource = templates.create_resource()
+        mapper.connect('/templates',
+                       controller=templates_resource,
+                       action='index',
+                       conditions={'method': ['GET']})
+        mapper.connect('/templates',
+                       controller=templates_resource,
+                       action='create',
+                       conditions={'method': ['POST']})
+        mapper.connect('/templates/{env_template_id}',
+                       controller=templates_resource,
+                       action='update',
+                       conditions={'method': ['PUT']})
+        mapper.connect('/templates/{env_template_id}',
+                       controller=templates_resource,
+                       action='show',
+                       conditions={'method': ['GET']})
+        mapper.connect('/templates/{env_template_id}',
+                       controller=templates_resource,
+                       action='delete',
+                       conditions={'method': ['DELETE']})
+        mapper.connect('/templates/{env_template_id}/create-environment',
+                       controller=templates_resource,
+                       action='create_environment',
+                       conditions={'method': ['POST']})
+
+        applications_resource = template_applications.create_resource()
+        mapper.connect('/templates/{env_template_id}/services',
+                       controller=applications_resource,
+                       action='index',
+                       conditions={'method': ['GET']}, path='')
+        mapper.connect('/templates/{env_template_id}/services/{path:.*?}',
+                       controller=applications_resource,
+                       action='show',
+                       conditions={'method': ['GET']}, path='')
+        mapper.connect('/templates/{env_template_id}/services',
+                       controller=applications_resource,
+                       action='post',
+                       conditions={'method': ['POST']}, path='')
+        mapper.connect('/templates/{env_template_id}/services/{path:.*?}',
+                       controller=applications_resource,
+                       action='delete',
+                       conditions={'method': ['DELETE']}, path='')
+
         deployments_resource = deployments.create_resource()
         mapper.connect('/environments/{environment_id}/deployments',
                        controller=deployments_resource,
@@ -147,6 +193,10 @@ class API(wsgi.Router):
                        controller=actions_resource,
                        action='execute',
                        conditions={'method': ['POST']})
+        mapper.connect('/environments/{environment_id}/actions/{task_id}',
+                       controller=actions_resource,
+                       action='get_result',
+                       conditions={'method': ['GET']})
 
         catalog_resource = catalog.create_resource()
         mapper.connect('/catalog/packages/categories',
@@ -189,7 +239,22 @@ class API(wsgi.Router):
                        controller=catalog_resource,
                        action='download',
                        conditions={'method': ['GET']})
-
+        mapper.connect('/catalog/categories',
+                       controller=catalog_resource,
+                       action='list_categories',
+                       conditions={'method': ['GET']})
+        mapper.connect('/catalog/categories/{category_id}',
+                       controller=catalog_resource,
+                       action='get_category',
+                       conditions={'method': ['GET']})
+        mapper.connect('/catalog/categories',
+                       controller=catalog_resource,
+                       action='add_category',
+                       conditions={'method': ['POST']})
+        mapper.connect('/catalog/categories/{category_id}',
+                       controller=catalog_resource,
+                       action='delete_category',
+                       conditions={'method': ['DELETE']})
         req_stats_resource = request_statistics.create_resource()
         mapper.connect('/stats',
                        controller=req_stats_resource,

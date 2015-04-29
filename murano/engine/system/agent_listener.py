@@ -14,12 +14,14 @@
 # limitations under the License.
 
 import eventlet
+import greenlet
 
 import murano.common.config as config
+import murano.common.exceptions as exceptions
+from murano.dsl import helpers
 import murano.dsl.murano_class as murano_class
 import murano.dsl.murano_object as murano_object
 import murano.engine.system.common as common
-
 from murano.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
@@ -40,6 +42,16 @@ class AgentListener(murano_object.MuranoObject):
         self._subscriptions = {}
         self._receive_thread = None
 
+    def _check_enabled(self):
+        if config.CONF.engine.disable_murano_agent:
+            LOG.debug(
+                'Use of murano-agent is disallowed '
+                'by the server configuration')
+
+            raise exceptions.PolicyViolationException(
+                'Use of murano-agent is disallowed '
+                'by the server configuration')
+
     @property
     def enabled(self):
         return self._enabled
@@ -47,13 +59,15 @@ class AgentListener(murano_object.MuranoObject):
     def queueName(self):
         return self._results_queue
 
-    def start(self):
+    def start(self, _context):
         if config.CONF.engine.disable_murano_agent:
             # Noop
             LOG.debug("murano-agent is disabled by the server")
             return
 
         if self._receive_thread is None:
+            helpers.get_environment(_context).on_session_finish(
+                lambda: self.stop())
             self._receive_thread = eventlet.spawn(self._receive)
 
     def stop(self):
@@ -64,15 +78,21 @@ class AgentListener(murano_object.MuranoObject):
 
         if self._receive_thread is not None:
             self._receive_thread.kill()
-            self._receive_thread = None
+            try:
+                self._receive_thread.wait()
+            except greenlet.GreenletExit:
+                pass
+            finally:
+                self._receive_thread = None
 
-    def subscribe(self, message_id, event):
-        if config.CONF.engine.disable_murano_agent:
-            raise AgentListenerException(
-                "Use of murano-agent is disallowed "
-                "by the server configuration")
-
+    def subscribe(self, message_id, event, _context):
+        self._check_enabled()
         self._subscriptions[message_id] = event
+        self.start(_context)
+
+    def unsubscribe(self, message_id):
+        self._check_enabled()
+        self._subscriptions.pop(message_id)
 
     def _receive(self):
         with common.create_rmq_client() as client:

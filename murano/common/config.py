@@ -25,7 +25,7 @@ import sys
 from oslo.config import cfg
 from paste import deploy
 
-from murano.openstack.common.gettextutils import _
+from murano.common.i18n import _
 from murano import version
 
 paste_deploy_opts = [
@@ -84,6 +84,13 @@ heat_opts = [
                help='Heat endpoint type.')
 ]
 
+mistral_opts = [
+    cfg.StrOpt('endpoint_type', default='publicURL',
+               help='Mistral endpoint type.'),
+    cfg.StrOpt('service_type', default='workflowv2',
+               help='Mistral service type.')
+]
+
 neutron_opts = [
     cfg.BoolOpt('insecure', default=False,
                 help='This option explicitly allows Murano to perform '
@@ -139,7 +146,12 @@ murano_opts = [
                                 'Murano engine.'),
 
     cfg.StrOpt('endpoint_type', default='publicURL',
-               help='Murno endpoint type used by Murano engine.')
+               help='Murano endpoint type used by Murano engine.'),
+
+    cfg.ListOpt('enabled_plugins', default=None,
+                help="List of enabled Extension Plugins. "
+                     "Remove or leave commented to enable all installed "
+                     "plugins.")
 ]
 
 networking_opts = [
@@ -169,6 +181,10 @@ networking_opts = [
     cfg.BoolOpt('create_router', default=True,
                 help='This option will create a router when one with '
                      '"router_name" does not exist'),
+
+    cfg.StrOpt('network_config_file', default='netconfig.yaml',
+               help='If provided networking configuration will be taken '
+                    'from this file')
 ]
 stats_opts = [
     cfg.IntOpt('period', default=5,
@@ -183,7 +199,9 @@ engine_opts = [
                help=_('Path to class configuration files')),
     cfg.BoolOpt('use_trusts', default=False,
                 help=_("Create resources using trust token rather "
-                       "than user's token"))
+                       "than user's token")),
+    cfg.BoolOpt('enable_model_policy_enforcer', default=False,
+                help=_('Enable model policy enforcer using Congress'))
 ]
 
 # TODO(sjmc7): move into engine opts?
@@ -211,21 +229,17 @@ file_server = [
     cfg.StrOpt('file_server', default='')
 ]
 
-murano_metadata_url = [
-    cfg.StrOpt('murano_metadata_url', default='')
-]
-
 CONF = cfg.CONF
 CONF.register_opts(paste_deploy_opts, group='paste_deploy')
 CONF.register_cli_opts(bind_opts)
 CONF.register_opts(rabbit_opts, group='rabbitmq')
 CONF.register_opts(heat_opts, group='heat')
+CONF.register_opts(mistral_opts, group='mistral')
 CONF.register_opts(neutron_opts, group='neutron')
 CONF.register_opts(keystone_opts, group='keystone')
 CONF.register_opts(murano_opts, group='murano')
 CONF.register_opts(engine_opts, group='engine')
 CONF.register_opts(file_server)
-CONF.register_cli_opts(murano_metadata_url)
 CONF.register_cli_opts(metadata_dir)
 CONF.register_opts(packages_opts, group='packages_opts')
 CONF.register_opts(stats_opts, group='stats')
@@ -250,7 +264,7 @@ def setup_logging():
             return
         else:
             raise RuntimeError(_("Unable to locate specified logging "
-                                 "config file: %s" % CONF.log_config))
+                                 "config file: %s") % CONF.log_config)
 
     root_logger = logging.root
     if CONF.debug:
@@ -338,8 +352,8 @@ def load_paste_app(app_name=None):
 
     try:
         logger = logging.getLogger(__name__)
-        logger.debug(_("Loading %(app_name)s from %(conf_file)s"),
-                     {'conf_file': conf_file, 'app_name': app_name})
+        logger.debug("Loading %(app_name)s from %(conf_file)s".format(
+            conf_file=conf_file, app_name=app_name))
 
         app = deploy.loadapp("config:%s" % conf_file, name=app_name)
 
@@ -349,8 +363,9 @@ def load_paste_app(app_name=None):
 
         return app
     except (LookupError, ImportError) as e:
-        msg = _("Unable to load %(app_name)s from "
-                "configuration file %(conf_file)s."
-                "\nGot: %(e)r") % locals()
+        msg = _("Unable to load %(app_name)s from configuration file"
+                " %(conf_file)s. \nGot: %(e)r") % {'conf_file': conf_file,
+                                                   'app_name': app_name,
+                                                   'e': e}
         logger.error(msg)
         raise RuntimeError(msg)

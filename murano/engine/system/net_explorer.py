@@ -16,7 +16,7 @@ import math
 
 import netaddr
 from netaddr.strategy import ipv4
-import oslo.utils
+from oslo.utils import uuidutils
 
 import murano.common.config as config
 import murano.dsl.helpers as helpers
@@ -52,7 +52,7 @@ class NetworkExplorer(murano_object.MuranoObject):
                           format(router_name))
                 external_network = self._settings.external_network
                 kwargs = {'id': external_network} \
-                    if oslo.utils.uuidutils.is_uuid_like(external_network) \
+                    if uuidutils.is_uuid_like(external_network) \
                     else {'name': external_network}
                 networks = client.list_networks(**kwargs).get('networks')
                 ext_nets = filter(lambda n: n['router:external'], networks)
@@ -165,3 +165,13 @@ class NetworkExplorer(murano_object.MuranoObject):
         net = netaddr.IPNetwork(
             '{0}/{1}'.format(self._settings.env_ip_template, mask_width))
         return list(net.subnet(width - bits_for_hosts))
+
+    # noinspection PyPep8Naming
+    def listNetworks(self, _context):
+        client = self._clients.get_neutron_client(_context)
+        return client.list_networks()['networks']
+
+    # noinspection PyPep8Naming
+    def listSubnetworks(self, _context):
+        client = self._clients.get_neutron_client(_context)
+        return client.list_subnets()['subnets']

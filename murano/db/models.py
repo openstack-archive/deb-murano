@@ -36,11 +36,11 @@ class TimestampMixin(object):
     def update(self, values):
         """dict.update() behaviour."""
         self.updated = timeutils.utcnow()
-        super(_MuranoBase, self).update(values)
+        super(TimestampMixin, self).update(values)
 
     def __setitem__(self, key, value):
         self.updated = timeutils.utcnow()
-        super(_MuranoBase, self).__setitem__(key, value)
+        super(TimestampMixin, self).__setitem__(key, value)
 
 
 class _MuranoBase(models.ModelBase):
@@ -78,6 +78,26 @@ class Environment(Base, TimestampMixin):
         return dictionary
 
 
+class EnvironmentTemplate(Base, TimestampMixin):
+    """Represents a Environment emplate in the metadata-store."""
+    __tablename__ = 'environment-template'
+
+    id = sa.Column(sa.String(36),
+                   primary_key=True,
+                   default=uuidutils.generate_uuid)
+    name = sa.Column(sa.String(255), nullable=False)
+    tenant_id = sa.Column(sa.String(36), nullable=False)
+    version = sa.Column(sa.BigInteger, nullable=False, default=0)
+    description = sa.Column(st.JsonBlob(), nullable=False, default={})
+    networking = sa.Column(st.JsonBlob(), nullable=True, default={})
+
+    def to_dict(self):
+        dictionary = super(EnvironmentTemplate, self).to_dict()
+        if 'description' in dictionary:
+            del dictionary['description']
+        return dictionary
+
+
 class Session(Base, TimestampMixin):
     __tablename__ = 'session'
 
@@ -94,7 +114,7 @@ class Session(Base, TimestampMixin):
     def to_dict(self):
         dictionary = super(Session, self).to_dict()
         del dictionary['description']
-        #object relations may be not loaded yet
+        # object relations may be not loaded yet
         if 'environment' in dictionary:
             del dictionary['environment']
         return dictionary
@@ -113,6 +133,7 @@ class Task(Base, TimestampMixin):
 
     statuses = sa_orm.relationship("Status", backref='task',
                                    cascade='save-update, merge, delete')
+    result = sa.Column(st.JsonBlob(), nullable=True, default={})
 
     def to_dict(self):
         dictionary = super(Task, self).to_dict()
@@ -132,13 +153,13 @@ class Status(Base, TimestampMixin):
     entity_id = sa.Column(sa.String(255), nullable=True)
     entity = sa.Column(sa.String(10), nullable=True)
     task_id = sa.Column(sa.String(32), sa.ForeignKey('task.id'))
-    text = sa.Column(sa.String(), nullable=False)
+    text = sa.Column(sa.Text(), nullable=False)
     level = sa.Column(sa.String(32), nullable=False)
     details = sa.Column(sa.Text(), nullable=True)
 
     def to_dict(self):
         dictionary = super(Status, self).to_dict()
-        #object relations may be not loaded yet
+        # object relations may be not loaded yet
         if 'deployment' in dictionary:
             del dictionary['deployment']
         return dictionary
@@ -158,9 +179,6 @@ class ApiStats(Base, TimestampMixin):
     cpu_count = sa.Column(sa.Integer())
     cpu_percent = sa.Column(sa.Float())
 
-    def to_dict(self):
-        dictionary = super(ApiStats, self).to_dict()
-        return dictionary
 
 package_to_category = sa.Table('package_to_category',
                                Base.metadata,
@@ -180,7 +198,7 @@ package_to_tag = sa.Table('package_to_tag',
                           sa.Column('tag_id',
                                     sa.String(36),
                                     sa.ForeignKey('tag.id',
-                                    ondelete="CASCADE")))
+                                                  ondelete="CASCADE")))
 
 
 class Instance(Base):
@@ -198,29 +216,25 @@ class Instance(Base):
     unit_count = sa.Column('unit_count', sa.Integer())
     tenant_id = sa.Column('tenant_id', sa.String(36), nullable=False)
 
-    def to_dict(self):
-        dictionary = super(Instance, self).to_dict()
-        return dictionary
-
 
 class Package(Base, TimestampMixin):
     """Represents a meta information about application package."""
     __tablename__ = 'package'
-
+    __table_args__ = (sa.Index('ix_package_fqn_and_owner',
+                               'fully_qualified_name',
+                               'owner_id', unique=True),)
     id = sa.Column(sa.String(36),
                    primary_key=True,
                    default=uuidutils.generate_uuid)
     archive = sa.Column(st.LargeBinary())
     fully_qualified_name = sa.Column(sa.String(128),
-                                     nullable=False,
-                                     index=True,
-                                     unique=True)
+                                     nullable=False)
     type = sa.Column(sa.String(20), nullable=False, default='class')
     author = sa.Column(sa.String(80), default='Openstack')
     supplier = sa.Column(st.JsonBlob(), nullable=True, default={})
     name = sa.Column(sa.String(80), nullable=False)
     enabled = sa.Column(sa.Boolean, default=True)
-    description = sa.Column(sa.String(512),
+    description = sa.Column(sa.Text(),
                             nullable=False,
                             default='The description is not provided')
     is_public = sa.Column(sa.Boolean, default=False)
@@ -237,7 +251,8 @@ class Package(Base, TimestampMixin):
                                      cascade='save-update, merge',
                                      lazy='joined')
     class_definitions = sa_orm.relationship(
-        "Class", cascade='save-update, merge, delete', lazy='joined')
+        "Class", cascade='save-update, merge, delete', lazy='joined',
+        backref='package')
 
     def to_dict(self):
         d = self.__dict__.copy()
@@ -264,6 +279,17 @@ class Category(Base, TimestampMixin):
                    default=uuidutils.generate_uuid)
     name = sa.Column(sa.String(80), nullable=False, index=True, unique=True)
 
+    package_count = sa_orm.column_property(
+        sa.select([sa.func.count(package_to_category.c.package_id)]).
+        where(package_to_category.c.category_id == id).
+        correlate_except(package_to_category)
+    )
+
+    def to_dict(self):
+        d = super(Category, self).to_dict()
+        d['package_count'] = self.package_count
+        return d
+
 
 class Tag(Base, TimestampMixin):
     """Represents tags in the datastore."""
@@ -286,10 +312,16 @@ class Class(Base, TimestampMixin):
     package_id = sa.Column(sa.String(36), sa.ForeignKey('package.id'))
 
 
+class Lock(Base):
+    __tablename__ = 'locks'
+    id = sa.Column(sa.String(50), primary_key=True)
+    ts = sa.Column(sa.DateTime, nullable=False)
+
+
 def register_models(engine):
     """Creates database tables for all models with the given engine."""
     models = (Environment, Status, Session, Task,
-              ApiStats, Package, Category, Class, Instance)
+              ApiStats, Package, Category, Class, Instance, Lock)
     for model in models:
         model.metadata.create_all(engine)
 
@@ -297,6 +329,6 @@ def register_models(engine):
 def unregister_models(engine):
     """Drops database tables for all models with the given engine."""
     models = (Environment, Status, Session, Task,
-              ApiStats, Package, Category, Class)
+              ApiStats, Package, Category, Class, Lock)
     for model in models:
         model.metadata.drop_all(engine)

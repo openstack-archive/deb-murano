@@ -14,10 +14,12 @@
 
 # Based on designate/policy.py
 
-import murano.openstack.common.log as logging
-from murano.openstack.common import policy
 from oslo.config import cfg
 from webob import exc as exceptions
+
+from murano.common.i18n import _
+import murano.openstack.common.log as logging
+from murano.openstack.common import policy
 
 LOG = logging.getLogger(__name__)
 
@@ -76,8 +78,20 @@ def check(rule, ctxt, target={}, do_raise=True, exc=exceptions.HTTPForbidden):
         extra = {'policy': {'rule': rule, 'target': target}}
 
         if result:
-            LOG.audit("Policy check succeeded for rule '%s' on target %s",
-                      rule, repr(target), extra=extra)
+            LOG.audit(_("Policy check succeeded for rule "
+                        "'%(rule)s' on target %(target)s"),
+                      {'rule': rule, 'target': repr(target)}, extra=extra)
         else:
-            LOG.audit("Policy check failed for rule '%s' on target: %s",
-                      rule, repr(target), extra=extra)
+            LOG.audit(_("Policy check failed for rule "
+                        "'%(rule)s' on target: %(target)s"),
+                      {'rule': rule, 'target': repr(target)}, extra=extra)
+
+
+def check_is_admin(context):
+    """Check if the given context is associated with an admin role.
+
+       :param context: Murano request context
+       :returns: A non-False value if context role is admin.
+    """
+    return check('context_is_admin', context,
+                 context.to_dict(), do_raise=False)
