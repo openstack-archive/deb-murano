@@ -1,6 +1,7 @@
-murano (2015.1~b1-1) UNRELEASED; urgency=medium
+murano (2015.1~rc1-1) unstable; urgency=medium
 
   * New upstream release.
+  * Uploading to unstable.
   * Reviewed (build-)depends for this release.
   * Rebased the "disable-failing-tests.patch" which didn't apply anymore.
   * Now generating the .conf file using oslo-config-generator.
