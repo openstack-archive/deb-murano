@@ -1,3 +1,10 @@
+murano (2015.1.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Updated (build-)depends for this release.
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 30 Apr 2015 22:10:22 +0000
+
 murano (2015.1~rc1-1) unstable; urgency=medium
 
   * New upstream release.
