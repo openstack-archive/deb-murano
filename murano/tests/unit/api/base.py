@@ -80,6 +80,8 @@ class MuranoApiTestCase(base.MuranoWithDBTestCase, FakeLogMixin):
                    return_value=self.mock_engine_rpc).start()
         mock.patch(self.RPC_IMPORT + '.api',
                    return_value=self.mock_api_rpc).start()
+        mock.patch('murano.db.services.environments.EnvironmentServices.'
+                   'get_network_driver', return_value='neutron').start()
 
         self.addCleanup(mock.patch.stopall)
 
@@ -181,7 +183,8 @@ class ControllerTest(object):
         environ['REQUEST_METHOD'] = method
 
         req = wsgi.Request(environ)
-        req.context = utils.dummy_context(user, tenant)
+        req.context = utils.dummy_context(user, tenant,
+                                          is_admin=self.is_admin)
         self.context = req.context
         req.content_type = content_type
         req.body = data

@@ -18,6 +18,7 @@ import cStringIO
 import imghdr
 import json
 import os
+import uuid
 
 import mock
 from oslo.utils import timeutils
@@ -35,6 +36,176 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
     def setUp(self):
         super(TestCatalogApi, self).setUp()
         self.controller = catalog.Controller()
+        _, self.test_package = self._test_package()
+
+    def _add_pkg(self, tenant_name, public=False, classes=None, **kwargs):
+        package_to_upload = self.test_package.copy()
+        package_to_upload['is_public'] = public
+        package_to_upload['fully_qualified_name'] = str(uuid.uuid4())
+        if classes:
+            package_to_upload['class_definitions'] = classes
+        else:
+            package_to_upload['class_definitions'] = []
+        package_to_upload.update(kwargs)
+        return db_catalog_api.package_upload(
+            package_to_upload, tenant_name)
+
+    def test_packages_filtering_admin(self):
+        self.is_admin = True
+        self._set_policy_rules(
+            {'get_package': ''}
+        )
+        for i in range(7):
+            self.expect_policy_check('get_package')
+
+        pkg = self._add_pkg('test_tenant', type='Library')
+        self._add_pkg('test_tenant')
+        self._add_pkg('test_tenant2', public=True, type='Library')
+        self._add_pkg('test_tenant3')
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'False',
+                                             'owned': 'False'}))
+        self.assertEqual(len(result['packages']), 4)
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'False',
+                                             'owned': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True',
+                                             'owned': 'False'}))
+        self.assertEqual(len(result['packages']), 3)
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True',
+                                             'owned': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'owned': 'True',
+                'fqn': pkg.fully_qualified_name}))
+        self.assertEqual(len(result['packages']), 1)
+        self.assertEqual(result['packages'][0]['fully_qualified_name'],
+                         pkg.fully_qualified_name)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'owned': 'True',
+                'type': 'Library'}))
+        self.assertEqual(len(result['packages']), 1)
+        self.assertEqual(result['packages'][0]['fully_qualified_name'],
+                         pkg.fully_qualified_name)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'type': 'Library'}))
+        self.assertEqual(len(result['packages']), 2)
+
+    def test_packages_filtering_non_admin(self):
+        self.is_admin = False
+        self._set_policy_rules(
+            {'get_package': ''}
+        )
+        for i in range(7):
+            self.expect_policy_check('get_package')
+
+        pkg = self._add_pkg('test_tenant', type='Library')
+        self._add_pkg('test_tenant')
+        self._add_pkg('test_tenant2', public=True, type='Library')
+        self._add_pkg('test_tenant3')
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'False',
+                                             'owned': 'False'}))
+        self.assertEqual(len(result['packages']), 2)
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'False',
+                                             'owned': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True',
+                                             'owned': 'False'}))
+        self.assertEqual(len(result['packages']), 3)
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True',
+                                             'owned': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'owned': 'True',
+                'fqn': pkg.fully_qualified_name}))
+        self.assertEqual(len(result['packages']), 1)
+        self.assertEqual(result['packages'][0]['fully_qualified_name'],
+                         pkg.fully_qualified_name)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'owned': 'True',
+                'type': 'Library'}))
+        self.assertEqual(len(result['packages']), 1)
+        self.assertEqual(result['packages'][0]['fully_qualified_name'],
+                         pkg.fully_qualified_name)
+
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={
+                'type': 'Library'}))
+        self.assertEqual(len(result['packages']), 1)
+
+    def test_packages(self):
+        self._set_policy_rules(
+            {'get_package': ''}
+        )
+        for i in range(9):
+            self.expect_policy_check('get_package')
+
+        result = self.controller.search(self._get('/v1/catalog/packages/'))
+        self.assertEqual(len(result['packages']), 0)
+
+        self._add_pkg('test_tenant')
+        self._add_pkg('test_tenant')
+        self._add_pkg('other_tenant')
+        self._add_pkg('other_tenant')
+
+        # non-admin should only see 2 pkgs he can edit.
+        self.is_admin = False
+        result = self.controller.search(self._get('/v1/catalog/packages/'))
+        self.assertEqual(len(result['packages']), 2)
+        # can only deploy his + public
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+
+        # admin can edit anything
+        self.is_admin = True
+        result = self.controller.search(self._get('/v1/catalog/packages/'))
+        self.assertEqual(len(result['packages']), 4)
+        # admin can only deploy his + public
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True'}))
+        self.assertEqual(len(result['packages']), 2)
+
+        self._add_pkg('test_tenant', public=True)
+        self._add_pkg('other_tenant', public=True)
+
+        # non-admin can't edit other_tenants public pkgs
+        self.is_admin = False
+        result = self.controller.search(self._get('/v1/catalog/packages/'))
+        self.assertEqual(len(result['packages']), 3)
+        # can deploy mine + other public
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True'}))
+        self.assertEqual(len(result['packages']), 4)
+
+        # admin can edit anything
+        self.is_admin = True
+        result = self.controller.search(self._get('/v1/catalog/packages/'))
+        self.assertEqual(len(result['packages']), 6)
+        # can deploy mine + public
+        result = self.controller.search(self._get(
+            '/v1/catalog/packages/', params={'catalog': 'True'}))
+        self.assertEqual(len(result['packages']), 4)
 
     def _test_package(self):
         package_dir = os.path.abspath(
@@ -60,7 +231,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
             'ui_definition': pkg.raw_ui,
             'class_definitions': pkg.classes,
             'archive': pkg.blob,
-            'categories': []
+            'categories': [],
         }
         return pkg, package
 
@@ -90,13 +261,16 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
     def test_add_public_unauthorized(self):
         policy.set_rules({
             'upload_package': '@',
-            'publicize_package': 'role:is_admin or is_admin:True'
+            'publicize_package': 'is_admin:True',
+            'delete_package': 'is_admin:True',
         })
 
         self.expect_policy_check('upload_package')
-        self.expect_policy_check('publicize_image')
+        self.expect_policy_check('delete_package', mock.ANY)
         self.expect_policy_check('upload_package')
-        self.expect_policy_check('publicize_image')
+        self.expect_policy_check('publicize_package')
+        self.expect_policy_check('upload_package')
+        self.expect_policy_check('publicize_package')
 
         file_obj_str = cStringIO.StringIO("This is some dummy data")
         file_obj = mock.MagicMock(cgi.FieldStorage)
@@ -106,37 +280,51 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         body = '''\
 
 --BOUNDARY
-Content-Disposition: form-data; name="ziparchive"
-Content-Type: text/plain:
+Content-Disposition: form-data; name="__metadata__"
+
+{0}
+--BOUNDARY
+Content-Disposition: form-data; name="ziparchive"; filename="file.zip"
 
 This is a fake zip archive
---BOUNDARY
-Content-Disposition: form-data; name="metadata"; filename="test.json"
-Content-Type: application/json
-
-%s
---BOUNDARY--''' % package_metadata
+--BOUNDARY--'''
 
         with mock.patch('murano.packages.load_utils.load_from_file') as lff:
             lff.return_value = package_from_dir
+
+            # Uploading a non-public package
             req = self._post(
                 '/catalog/packages',
-                body,
+                body.format(json.dumps({'is_public': False})),
                 content_type='multipart/form-data; ; boundary=BOUNDARY',
-                params={"is_public": "true"})
+            )
+            res = req.get_response(self.api)
+            self.assertEqual(200, res.status_code)
+
+            self.is_admin = True
+            app_id = json.loads(res.body)['id']
+            req = self._delete('/catalog/packages/{0}'.format(app_id))
             res = req.get_response(self.api)
 
-            # Nobody has access to upload public images
+            self.is_admin = False
+            # Uploading a public package fails
+            req = self._post(
+                '/catalog/packages',
+                body.format(json.dumps({'is_public': True})),
+                content_type='multipart/form-data; ; boundary=BOUNDARY',
+            )
+            res = req.get_response(self.api)
             self.assertEqual(403, res.status_code)
 
+            # Uploading a public package passes for admin
             self.is_admin = True
             req = self._post(
                 '/catalog/packages',
-                body,
+                body.format(json.dumps({'is_public': True})),
                 content_type='multipart/form-data; ; boundary=BOUNDARY',
-                params={"is_public": "true"})
+            )
             res = req.get_response(self.api)
-            self.assertEqual(403, res.status_code)
+            self.assertEqual(200, res.status_code)
 
     def test_add_category(self):
         """Check that category added successfully
@@ -148,9 +336,12 @@ Content-Type: application/json
         fake_now = timeutils.utcnow()
         timeutils.utcnow.override_time = fake_now
 
-        expected = {'name': 'new_category',
-                    'created': timeutils.isotime(fake_now)[:-1],
-                    'updated': timeutils.isotime(fake_now)[:-1]}
+        expected = {
+            'name': 'new_category',
+            'created': timeutils.isotime(fake_now)[:-1],
+            'updated': timeutils.isotime(fake_now)[:-1],
+            'package_count': 0,
+        }
 
         body = {'name': 'new_category'}
         req = self._post('/catalog/categories', json.dumps(body))

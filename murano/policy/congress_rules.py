@@ -35,18 +35,11 @@ class CongressRulesManager(object):
             return self._rules
 
         self._env_id = model['?']['id']
-        # Environment owner is tenant.
-        self._owner_id = tenant_id
-
-        # Arbitrary property for tenant_id.
-        if tenant_id is not None:
-            r = PropertyRule(self._env_id, 'tenant_id', tenant_id)
-            self._rules.append(r)
 
         state_rule = StateRule(self._env_id, 'pending')
         self._rules.append(state_rule)
 
-        self._walk(model, self._process_item)
+        self._walk(model, owner_id=tenant_id)
 
         # Convert MuranoProperty containing reference to another object
         # to MuranoRelationship.
@@ -56,35 +49,77 @@ class CongressRulesManager(object):
         self._rules = [self._create_relationship(rule, object_ids)
                        for rule in self._rules]
 
+        relations = [(rel.source_id, rel.target_id)
+                     for rel in self._rules
+                     if isinstance(rel, RelationshipRule)]
+        closure = self.transitive_closure(relations)
+
+        for rel in closure:
+            self._rules.append(ConnectedRule(rel[0], rel[1]))
+
         return self._rules
 
-    def _walk(self, obj, func):
+    @staticmethod
+    def transitive_closure(relations):
+        """Computes transitive closure on a directed graph.
+
+        In other words computes reachability within the graph.
+        E.g. {(1, 2), (2, 3)} -> {(1, 2), (2, 3), (1, 3)}
+        (1, 3) was added because there is path from 1 to 3 in the graph.
+
+        :param relations: list of relations/edges in form of tuples
+        :return: transitive closure including original relations
+        """
+        closure = set(relations)
+        while True:
+            # Attempts to discover new transitive relations
+            # by joining 2 subsequent relations/edges within the graph.
+            new_relations = {(x, w) for x, y in closure
+                             for q, w in closure if q == y}
+            # Creates union with already discovered relations.
+            closure_until_now = closure | new_relations
+            # If no new relations were discovered in last cycle
+            # the computation is finished.
+            if closure_until_now == closure:
+                return closure
+            closure = closure_until_now
+
+    def _walk(self, obj, owner_id, path=()):
 
         if obj is None:
             return
 
         obj = self._to_dict(obj)
-        func(obj)
+        new_owner = self._process_item(obj, owner_id, path) or owner_id
         if isinstance(obj, list):
             for v in obj:
-                self._walk(v, func)
+                self._walk(v, new_owner, path)
         elif isinstance(obj, dict):
             for key, value in obj.iteritems():
-                self._walk(value, func)
+                self._walk(value, new_owner, path + (key, ))
 
-    def _process_item(self, obj):
+    def _process_item(self, obj, owner_id, path):
         if isinstance(obj, dict) and '?' in obj:
-            obj2 = self._create_object_rule(obj)
-            # Owner of components in environment is environment itself.
-            self._owner_id = self._env_id
+            obj_rule = self._create_object_rule(obj, owner_id)
 
-            self._rules.append(obj2)
-            self._rules.extend(self._create_propety_rules(obj2.obj_id, obj))
+            self._rules.append(obj_rule)
+            # the environment has 'services' relationships
+            # to all its top-level applications
+            # traversal path is used to test whether
+            # we are at the right place within the tree
+            if path == ('applications',):
+                self._rules.append(RelationshipRule(self._env_id,
+                                                    obj_rule.obj_id,
+                                                    "services"))
+            self._rules.extend(
+                self._create_propety_rules(obj_rule.obj_id, obj))
 
             cls = obj['?']['type']
             types = self._get_parent_types(cls, self._class_loader)
             self._rules.extend(self._create_parent_type_rules(obj['?']['id'],
                                                               types))
+            # current object will be the owner for its subtree
+            return obj_rule.obj_id
 
     @staticmethod
     def _to_dict(obj):
@@ -94,8 +129,8 @@ class CongressRulesManager(object):
         else:
             return obj
 
-    def _create_object_rule(self, app):
-        return ObjectRule(app['?']['id'], self._owner_id, app['?']['type'])
+    def _create_object_rule(self, app, owner_id):
+        return ObjectRule(app['?']['id'], owner_id, app['?']['type'])
 
     def _create_propety_rules(self, obj_id, obj, prefix=""):
         rules = []
@@ -193,6 +228,16 @@ class RelationshipRule(object):
     def __str__(self):
         return 'murano:relationships+("{0}", "{1}", "{2}")'.format(
             self.source_id, self.target_id, self.rel_name)
+
+
+class ConnectedRule(object):
+    def __init__(self, source_id, target_id):
+        self.source_id = source_id
+        self.target_id = target_id
+
+    def __str__(self):
+        return 'murano:connected+("{0}", "{1}")'.format(
+            self.source_id, self.target_id)
 
 
 class ParentTypeRule(object):

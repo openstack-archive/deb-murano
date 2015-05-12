@@ -37,12 +37,12 @@ Methods for application package management
 - ``class_definition``: list of class names used by a package
 - ``is_public``: determines whether the package is shared for other tenants
 - ``enabled``: determines whether the package is browsed in the Application Catalog
-- ``owner_id``: id of a tenant which user  not an owned the package
+- ``owner_id``: id of a tenant that owns the package
 
 List packages
 -------------
 
-`/v1/catalog/packages?{marker}{limit}{order_by}{type}{category}{fqn}{owned}{class_name} [GET]`
+`/v1/catalog/packages?{marker}{limit}{order_by}{type}{category}{fqn}{owned}{catalog}{class_name} [GET]`
 
 This is the compound request to list and search through application catalog.
 If there are no search parameters all packages that is_public, enabled and belong to the user's tenant will be listed.
@@ -54,6 +54,9 @@ For an admin role all packages are available.
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | Attribute            | Type        | Description                                                                                                                  |
 +======================+=============+==============================================================================================================================+
+| ``catalog``          | bool        | If false (default) - search packages, that current user can edit (own for non-admin, all for admin)                          |
+|                      |             | If true - search packages, that current user can deploy (i.e. his own + public)                                              |
++----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``marker``           | string      | A package identifier marker may be specified. When present only packages which occur after the identifier ID will be listed  |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``limit``            | string      | When present the maximum number of results returned will not exceed the specified value.                                     |
@@ -68,13 +71,13 @@ For an admin role all packages are available.
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``fqn``              | string      | Allows to point a fully qualified package name for a search                                                                  |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
-| ``owned``            | bool        | Search only from packages owned by user tenant                                                                               |
+| ``owned``            | bool        | Search only from packages owned by current tenant                                                                            |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``include_disabled`` | bool        | Include disabled packages in a the result                                                                                    |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``search``           | string      | Gives opportunity to search specified data by all the package parameters                                                     |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
-| ``class_name``       | string      |Search only for packages, that use specified class                                                                            |
+| ``class_name``       | string      | Search only for packages, that use specified class                                                                           |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 
 **Response 200 (application/json)**
@@ -441,13 +444,15 @@ List categories
                 "id": "0420045dce7445fabae7e5e61fff9e2f",
                 "updated": "2014-12-26T13:57:04",
                 "name": "Web",
-                "created": "2014-12-26T13:57:04"
+                "created": "2014-12-26T13:57:04",
+                "package_count": 1
             },
             {
                 "id": "3dd486b1e26f40ac8f35416b63f52042",
                 "updated": "2014-12-26T13:57:04",
-            "name": "Databases",
-            "created": "2014-12-26T13:57:04"
+                "name": "Databases",
+                "created": "2014-12-26T13:57:04",
+                "package_count": 0
             }]
         }
 
@@ -490,7 +495,8 @@ Get category details
             }
         ],
         "name": "Web",
-        "created": "2015-01-28T17:00:19"
+        "created": "2015-01-28T17:00:19",
+        "package_count": 1
     }
 
 +----------------+-----------------------------------------------------------+
@@ -541,6 +547,7 @@ Add new category
         "name": "category_name",
         "created": "2013-11-30T03:23:42Z",
         "updated": "2013-11-30T03:23:44Z",
+        "package_count": 0
     }
 
 

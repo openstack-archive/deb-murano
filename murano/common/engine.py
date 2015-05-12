@@ -21,6 +21,7 @@ from oslo import messaging
 from oslo.messaging import target
 from oslo.serialization import jsonutils
 
+from murano.common import auth_utils
 from murano.common import config
 from murano.common.helpers import token_sanitizer
 from murano.common import plugin_loader
@@ -28,7 +29,6 @@ from murano.common import rpc
 from murano.dsl import dsl_exception
 from murano.dsl import executor
 from murano.dsl import serializer
-from murano.engine import auth_utils
 from murano.engine import client_manager
 from murano.engine import environment
 from murano.engine import package_class_loader
@@ -62,7 +62,8 @@ class TaskProcessingEndpoint(object):
         except Exception as e:
             LOG.exception(_LE('Error during task execution for tenant %s'),
                           task['tenant_id'])
-            result['action'] = TaskExecutor.exception_result(e)
+            result['action'] = TaskExecutor.exception_result(
+                e, traceback.format_exc())
             msg_env = Environment(task['id'])
             reporter = status_reporter.StatusReporter()
             reporter.initialize(msg_env)
@@ -139,7 +140,8 @@ class TaskExecutor(object):
             murano_client_factory = lambda: \
                 self._environment.clients.get_murano_client(self._environment)
             with package_loader.ApiPackageLoader(
-                    murano_client_factory) as pkg_loader:
+                    murano_client_factory,
+                    self._environment.tenant_id) as pkg_loader:
                 return self._execute(pkg_loader)
         finally:
             if self._model['Objects'] is None:
@@ -157,30 +159,30 @@ class TaskExecutor(object):
         action_result = None
         exception = None
         exception_traceback = None
+
         try:
-            LOG.info(_LI('Invoking pre-execution hooks'))
+            LOG.info(_LI('Invoking pre-cleanup hooks'))
             self.environment.start()
-            # Skip execution of action in case no action is provided.
-            # Model will be just loaded, cleaned-up and unloaded.
-            # Most of the time this is used for deletion of environments.
-            if self.action:
-                action_result = self._invoke(exc)
+            exc.cleanup(self._model)
         except Exception as e:
             exception = e
-            if isinstance(e, dsl_exception.MuranoPlException):
-                LOG.error('\n' + e.format(prefix='  '))
-            else:
-                exception_traceback = traceback.format_exc()
-                LOG.exception(
-                    _LE("Exception %(exc)s occured"
-                        " during invocation of %(method)s"),
-                    {'exc': e, 'method': self.action['method']})
-            reporter = status_reporter.StatusReporter()
-            reporter.initialize(obj)
-            reporter.report_error(obj, str(e))
+            exception_traceback = TaskExecutor._log_exception(e, obj, '<GC>')
         finally:
-            LOG.info(_LI('Invoking post-execution hooks'))
+            LOG.info(_LI('Invoking post-cleanup hooks'))
             self.environment.finish()
+
+        if exception is None and self.action:
+            try:
+                LOG.info(_LI('Invoking pre-execution hooks'))
+                self.environment.start()
+                action_result = self._invoke(exc)
+            except Exception as e:
+                exception = e
+                exception_traceback = TaskExecutor._log_exception(
+                    e, obj, self.action['method'])
+            finally:
+                LOG.info(_LI('Invoking post-execution hooks'))
+                self.environment.finish()
 
         model = serializer.serialize_model(obj, exc)
         model['SystemData'] = self._environment.system_attributes
@@ -201,18 +203,31 @@ class TaskExecutor(object):
         return result
 
     @staticmethod
-    def exception_result(exception, exception_traceback=None):
-        record = {
+    def _log_exception(e, root, method_name):
+        if isinstance(e, dsl_exception.MuranoPlException):
+            LOG.error('\n' + e.format(prefix='  '))
+            exception_traceback = e.format()
+        else:
+            exception_traceback = traceback.format_exc()
+            LOG.exception(
+                _LE("Exception %(exc)s occurred"
+                    " during invocation of %(method)s"),
+                {'exc': e, 'method': method_name})
+        if root is not None:
+            reporter = status_reporter.StatusReporter()
+            reporter.initialize(root)
+            reporter.report_error(root, str(e))
+        return exception_traceback
+
+    @staticmethod
+    def exception_result(exception, exception_traceback):
+        return {
             'isException': True,
             'result': {
                 'message': str(exception),
+                'details': exception_traceback
             }
         }
-        if isinstance(exception, dsl_exception.MuranoPlException):
-            record['result']['details'] = exception.format()
-        else:
-            record['result']['details'] = exception_traceback
-        return record
 
     def _validate_model(self, obj, action, class_loader):
         if config.CONF.engine.enable_model_policy_enforcer:
@@ -233,13 +248,14 @@ class TaskExecutor(object):
             return
         trust_id = self._environment.system_attributes.get('TrustId')
         if not trust_id:
-            trust_id = auth_utils.create_trust(self._environment)
+            trust_id = auth_utils.create_trust(self._environment.token,
+                                               self._environment.tenant_id)
             self._environment.system_attributes['TrustId'] = trust_id
         self._environment.trust_id = trust_id
 
     def _delete_trust(self):
         trust_id = self._environment.trust_id
         if trust_id:
-            auth_utils.delete_trust(self._environment)
+            auth_utils.delete_trust(self._environment.trust_id)
             self._environment.system_attributes['TrustId'] = None
             self._environment.trust_id = None

@@ -36,11 +36,11 @@ class TimestampMixin(object):
     def update(self, values):
         """dict.update() behaviour."""
         self.updated = timeutils.utcnow()
-        super(_MuranoBase, self).update(values)
+        super(TimestampMixin, self).update(values)
 
     def __setitem__(self, key, value):
         self.updated = timeutils.utcnow()
-        super(_MuranoBase, self).__setitem__(key, value)
+        super(TimestampMixin, self).__setitem__(key, value)
 
 
 class _MuranoBase(models.ModelBase):
@@ -179,9 +179,6 @@ class ApiStats(Base, TimestampMixin):
     cpu_count = sa.Column(sa.Integer())
     cpu_percent = sa.Column(sa.Float())
 
-    def to_dict(self):
-        dictionary = super(ApiStats, self).to_dict()
-        return dictionary
 
 package_to_category = sa.Table('package_to_category',
                                Base.metadata,
@@ -219,23 +216,19 @@ class Instance(Base):
     unit_count = sa.Column('unit_count', sa.Integer())
     tenant_id = sa.Column('tenant_id', sa.String(36), nullable=False)
 
-    def to_dict(self):
-        dictionary = super(Instance, self).to_dict()
-        return dictionary
-
 
 class Package(Base, TimestampMixin):
     """Represents a meta information about application package."""
     __tablename__ = 'package'
-
+    __table_args__ = (sa.Index('ix_package_fqn_and_owner',
+                               'fully_qualified_name',
+                               'owner_id', unique=True),)
     id = sa.Column(sa.String(36),
                    primary_key=True,
                    default=uuidutils.generate_uuid)
     archive = sa.Column(st.LargeBinary())
     fully_qualified_name = sa.Column(sa.String(128),
-                                     nullable=False,
-                                     index=True,
-                                     unique=True)
+                                     nullable=False)
     type = sa.Column(sa.String(20), nullable=False, default='class')
     author = sa.Column(sa.String(80), default='Openstack')
     supplier = sa.Column(st.JsonBlob(), nullable=True, default={})
@@ -258,7 +251,8 @@ class Package(Base, TimestampMixin):
                                      cascade='save-update, merge',
                                      lazy='joined')
     class_definitions = sa_orm.relationship(
-        "Class", cascade='save-update, merge, delete', lazy='joined')
+        "Class", cascade='save-update, merge, delete', lazy='joined',
+        backref='package')
 
     def to_dict(self):
         d = self.__dict__.copy()
@@ -285,9 +279,16 @@ class Category(Base, TimestampMixin):
                    default=uuidutils.generate_uuid)
     name = sa.Column(sa.String(80), nullable=False, index=True, unique=True)
 
+    package_count = sa_orm.column_property(
+        sa.select([sa.func.count(package_to_category.c.package_id)]).
+        where(package_to_category.c.category_id == id).
+        correlate_except(package_to_category)
+    )
+
     def to_dict(self):
-        dictionary = super(Category, self).to_dict()
-        return dictionary
+        d = super(Category, self).to_dict()
+        d['package_count'] = self.package_count
+        return d
 
 
 class Tag(Base, TimestampMixin):
@@ -311,10 +312,16 @@ class Class(Base, TimestampMixin):
     package_id = sa.Column(sa.String(36), sa.ForeignKey('package.id'))
 
 
+class Lock(Base):
+    __tablename__ = 'locks'
+    id = sa.Column(sa.String(50), primary_key=True)
+    ts = sa.Column(sa.DateTime, nullable=False)
+
+
 def register_models(engine):
     """Creates database tables for all models with the given engine."""
     models = (Environment, Status, Session, Task,
-              ApiStats, Package, Category, Class, Instance)
+              ApiStats, Package, Category, Class, Instance, Lock)
     for model in models:
         model.metadata.create_all(engine)
 
@@ -322,6 +329,6 @@ def register_models(engine):
 def unregister_models(engine):
     """Drops database tables for all models with the given engine."""
     models = (Environment, Status, Session, Task,
-              ApiStats, Package, Category, Class)
+              ApiStats, Package, Category, Class, Lock)
     for model in models:
         model.metadata.drop_all(engine)

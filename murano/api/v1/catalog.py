@@ -132,15 +132,23 @@ class Controller(object):
                                 "value":"New description" }
             { "op": "replace", "path": "/name", "value": "New name" }
         """
-        policy.check("update_package", req.context, {'package_id': package_id})
+        policy.check("modify_package", req.context, {'package_id': package_id})
+
+        pkg_to_update = db_api.package_get(package_id, req.context)
+        if pkg_to_update.is_public:
+            policy.check("manage_public_package", req.context)
 
         _check_content_type(req, 'application/murano-packages-json-patch')
         if not isinstance(body, list):
             msg = _('Request body must be a JSON array of operation objects.')
             LOG.error(msg)
             raise exc.HTTPBadRequest(explanation=msg)
+        for change in body:
+            if 'is_public' in change['path']:
+                if change['value'] is True and not pkg_to_update.is_public:
+                    policy.check('publicize_package', req.context)
+                break
         package = db_api.package_update(package_id, body, req.context)
-
         return package.to_dict()
 
     def get(self, req, package_id):
@@ -167,16 +175,20 @@ class Controller(object):
 
             return value
 
-        policy.check("search_packages", req.context)
+        policy.check("get_package", req.context)
 
         filters = _get_filters(req.GET.items())
+
         limit = _validate_limit(filters.get('limit'))
         if limit is None:
             limit = CONF.packages_opts.limit_param_default
         limit = min(CONF.packages_opts.api_limit_max, limit)
 
         result = {}
-        packages = db_api.package_search(filters, req.context, limit)
+
+        catalog = req.GET.pop('catalog', '').lower() == 'true'
+        packages = db_api.package_search(
+            filters, req.context, limit, catalog=catalog)
         if len(packages) == limit:
             result['next_marker'] = packages[-1].id
         result['packages'] = [package.to_dict() for package in packages]
@@ -199,6 +211,9 @@ class Controller(object):
                 raise exc.HTTPBadRequest(explanation=msg)
         else:
             package_meta = {}
+
+        if package_meta.get('is_public'):
+            policy.check('publicize_package', req.context)
 
         with tempfile.NamedTemporaryFile(delete=False) as tempf:
             LOG.debug("Storing package archive in a temporary file")
@@ -225,10 +240,6 @@ class Controller(object):
             if hasattr(pkg_to_upload, k):
                 package_meta[v] = getattr(pkg_to_upload, k)
 
-        if req.params.get('is_public', '').lower() == 'true':
-            policy.check('publicize_image', req.context)
-            package_meta['is_public'] = True
-
         try:
             package = db_api.package_upload(package_meta, req.context.tenant)
         except db_exc.DBDuplicateEntry:
@@ -239,14 +250,14 @@ class Controller(object):
 
     def get_ui(self, req, package_id):
         target = {'package_id': package_id}
-        policy.check("get_package_ui", req.context, target)
+        policy.check("get_package", req.context, target)
 
         package = db_api.package_get(package_id, req.context)
         return package.ui_definition
 
     def get_logo(self, req, package_id):
         target = {'package_id': package_id}
-        policy.check("get_package_logo", req.context, target)
+        policy.check("get_package", req.context, target)
 
         package = db_api.package_get(package_id, req.context)
         return package.logo
@@ -266,6 +277,9 @@ class Controller(object):
         target = {'package_id': package_id}
         policy.check("delete_package", req.context, target)
 
+        package = db_api.package_get(package_id, req.context)
+        if package.is_public:
+            policy.check("manage_public_package", req.context, target)
         db_api.package_delete(package_id, req.context)
 
     def get_category(self, req, category_id):
@@ -274,12 +288,12 @@ class Controller(object):
         return category.to_dict()
 
     def show_categories(self, req):
-        policy.check("show_categories", req.context)
+        policy.check("get_category", req.context)
         categories = db_api.categories_list()
         return {'categories': [category.name for category in categories]}
 
     def list_categories(self, req):
-        policy.check("list_categories", req.context)
+        policy.check("get_category", req.context)
         categories = db_api.categories_list()
         return {'categories': [category.to_dict() for category in categories]}
 

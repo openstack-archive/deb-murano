@@ -14,6 +14,7 @@
 
 from oslo.config import cfg
 from oslo.db.sqlalchemy import utils
+import sqlalchemy as sa
 from sqlalchemy import or_
 from sqlalchemy.orm import attributes
 # TODO(ruhe) use exception declared in openstack/common/db
@@ -81,7 +82,8 @@ def package_get(package_id_or_name, context):
     """
     session = db_session.get_session()
     package = _package_get(package_id_or_name, session)
-    _authorize_package(package, context, allow_public=True)
+    if not context.is_admin:
+        _authorize_package(package, context, allow_public=True)
     return package
 
 
@@ -233,16 +235,31 @@ def package_update(pkg_id_or_name, changes, context):
     session = db_session.get_session()
     with session.begin():
         pkg = _package_get(pkg_id_or_name, session)
-        _authorize_package(pkg, context)
+        was_private = not pkg.is_public
+        if not context.is_admin:
+            _authorize_package(pkg, context)
 
         for change in changes:
             pkg = operation_methods[change['op']](pkg, change)
+        became_public = pkg.is_public
+        class_names = [clazz.name for clazz in pkg.class_definitions]
+        if was_private and became_public:
+            with db_session.get_lock("public_packages", session):
+                _check_for_existing_classes(session, class_names, None,
+                                            check_public=True,
+                                            ignore_package_with_id=pkg.id)
+                _check_for_public_packages_with_fqn(session,
+                                                    pkg.fully_qualified_name,
+                                                    pkg.id)
         session.add(pkg)
     return pkg
 
 
-def package_search(filters, context, limit=None):
+def package_search(filters, context, limit=None, catalog=False):
     """Search packages with different filters
+      Catalog param controls the base query creation. Catalog queries
+      only search packages a user can deploy. Non-catalog queries searches
+      packages a user can edit.
       * Admin is allowed to browse all the packages
       * Regular user is allowed to browse all packages belongs to user tenant
         and all other packages marked is_public.
@@ -252,45 +269,28 @@ def package_search(filters, context, limit=None):
         request and then to use the ID of the last package from the response
         as the marker parameter in a subsequent limited request.
     """
+
     session = db_session.get_session()
     pkg = models.Package
 
-    # If the packages search specifies the inclusion of disabled packages,
-    # we handle this differently for admins vs non-admins:
-    # For admins: *don't* require pkg.enabled == True (no changes to query)
-    # For non-admins: add an OR-condition to filter for packages that are owned
-    #                 by the tenant in the current context
-    # Otherwise: in all other cases, we return only enabled packages
-    if filters.get('include_disabled', '').lower() == 'true':
-        include_disabled = True
-    else:
-        include_disabled = False
+    query = session.query(pkg)
 
-    if context.is_admin:
-        if not include_disabled:
-            # NOTE(efedorova): is needed for SA 0.7.9, but could be done
-            # simpler in SA 0.8. See http://goo.gl/9stlKu for a details
-            query = session.query(pkg).filter(pkg.__table__.c.enabled)
-        else:
-            query = session.query(pkg)
-    elif filters.get('owned', '').lower() == 'true':
-        if not include_disabled:
-            query = session.query(pkg).filter(
-                (pkg.owner_id == context.tenant) & pkg.enabled
-            )
-        else:
-            query = session.query(pkg).filter(pkg.owner_id == context.tenant)
+    if catalog:
+        # Only show packages one can deploy, i.e. own + public
+        query = query.filter(or_(
+            pkg.owner_id == context.tenant, pkg.is_public)
+        )
     else:
-        if not include_disabled:
-            query = session.query(pkg).filter(
-                or_((pkg.is_public & pkg.enabled),
-                    ((pkg.owner_id == context.tenant) & pkg.enabled))
-            )
-        else:
-            query = session.query(pkg).filter(
-                or_((pkg.is_public & pkg.enabled),
-                    pkg.owner_id == context.tenant)
-            )
+        # Show packages one can edit.
+        if not context.is_admin:
+            query = query.filter(pkg.owner_id == context.tenant)
+        # No else here admin can edit everything.
+
+    if not filters.get('include_disabled', '').lower() == 'true':
+        query = query.filter(pkg.enabled)
+
+    if filters.get('owned', '').lower() == 'true':
+        query = query.filter(pkg.owner_id == context.tenant)
 
     if 'type' in filters.keys():
         query = query.filter(pkg.type == filters['type'].title())
@@ -327,17 +327,20 @@ def package_search(filters, context, limit=None):
                         condition = getattr(pkg, attr).any(
                             getattr(models, fk_fields[attr]).name.like(_word))
                         conditions.append(condition)
-                    else:
+                    elif isinstance(getattr(pkg, attr)
+                                    .property.columns[0].type, sa.String):
                         conditions.append(getattr(pkg, attr).like(_word))
         query = query.filter(or_(*conditions))
 
     sort_keys = [SEARCH_MAPPING[sort_key] for sort_key in
-                 filters.get('order_by', []) or ['name']]
+                 filters.get('order_by', ['name'])]
+
     marker = filters.get('marker')
-    # TODO(btully): sort_dir is always None - not getting passed as a filter?
     sort_dir = filters.get('sort_dir')
+
     if marker is not None:  # set marker to real object instead of its id
         marker = _package_get(marker, session)
+
     query = utils.paginate_query(
         query, pkg, limit, sort_keys, marker, sort_dir)
 
@@ -355,16 +358,37 @@ def package_upload(values, tenant_id):
     composite_attr_to_func = {'categories': _get_categories,
                               'tags': _get_tags,
                               'class_definitions': _get_class_definitions}
-    with session.begin():
+    is_public = values.get('is_public', False)
+
+    if is_public:
+        public_lock = db_session.get_lock("public_packages", session)
+    else:
+        public_lock = None
+    tenant_lock = db_session.get_lock("classes_of_" + tenant_id, session)
+    try:
+        _check_for_existing_classes(session, values.get('class_definitions'),
+                                    tenant_id, check_public=is_public)
+        if is_public:
+            _check_for_public_packages_with_fqn(
+                session,
+                values.get('fully_qualified_name'))
         for attr, func in composite_attr_to_func.iteritems():
             if values.get(attr):
                 result = func(values[attr], session)
                 setattr(package, attr, result)
                 del values[attr]
-
         package.update(values)
         package.owner_id = tenant_id
         package.save(session)
+        tenant_lock.commit()
+        if public_lock is not None:
+            public_lock.commit()
+    except Exception:
+        tenant_lock.rollback()
+        if public_lock is not None:
+            public_lock.rollback()
+        raise
+
     return package
 
 
@@ -374,7 +398,10 @@ def package_delete(package_id_or_name, context):
 
     with session.begin():
         package = _package_get(package_id_or_name, session)
-        _authorize_package(package, context)
+        if not context.is_admin and package.owner_id != context.tenant:
+            raise exc.HTTPForbidden(
+                explanation='Package is not owned by the'
+                            ' tenant "{0}"'.format(context.tenant))
         session.delete(package)
 
 
@@ -416,6 +443,9 @@ def category_add(category_name):
 
     with session.begin():
         category.update({'name': category_name})
+        # NOTE(kzaitsev) update package_count, so we can safely access from
+        # outside the session
+        category.package_count = 0
         category.save(session)
 
     return category
@@ -432,3 +462,49 @@ def category_delete(category_id):
             LOG.error(msg)
             raise exc.HTTPNotFound(msg)
         session.delete(category)
+
+
+def _check_for_existing_classes(session, class_names, tenant_id,
+                                check_public=False,
+                                ignore_package_with_id=None):
+    if not class_names:
+        return
+    q = session.query(models.Class.name).filter(
+        models.Class.name.in_(class_names))
+    private_filter = None
+    public_filter = None
+    predicate = None
+    if tenant_id is not None:
+        private_filter = models.Class.package.has(
+            models.Package.owner_id == tenant_id)
+    if check_public:
+        public_filter = models.Class.package.has(
+            models.Package.is_public)
+    if private_filter is not None and public_filter is not None:
+        predicate = sa.or_(private_filter, public_filter)
+    elif private_filter is not None:
+        predicate = private_filter
+    elif public_filter is not None:
+        predicate = public_filter
+    if predicate is not None:
+        q = q.filter(predicate)
+    if ignore_package_with_id is not None:
+        q = q.filter(models.Class.package_id != ignore_package_with_id)
+    if q.first() is not None:
+        msg = _('Class with the same full name is already '
+                'registered in the visibility scope')
+        LOG.error(msg)
+        raise exc.HTTPConflict(msg)
+
+
+def _check_for_public_packages_with_fqn(session, fqn,
+                                        ignore_package_with_id=None):
+    q = session.query(models.Package.id).\
+        filter(models.Package.is_public).\
+        filter(models.Package.fully_qualified_name == fqn)
+    if ignore_package_with_id is not None:
+        q = q.filter(models.Package.id != ignore_package_with_id)
+    if q.first() is not None:
+        msg = _('Package with the same Name is already made public')
+        LOG.error(msg)
+        raise exc.HTTPConflict(msg)
