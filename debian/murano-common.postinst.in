@@ -13,6 +13,10 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 
 	pkgos_var_user_group ${PROJECT_NAME}
 
+	mkdir -p /var/cache/murano/meta
+	chown ${PROJECT_NAME}:${PROJECT_NAME} /var/cache/murano/meta
+	chown ${PROJECT_NAME}:${PROJECT_NAME} /var/cache/murano
+
 	# Manage the configuration file
 	pkgos_write_new_conf ${PROJECT_NAME} ${PROJECT_NAME}.conf
 	pkgos_rabbit_write_conf ${PROJECT_CONF} DEFAULT ${PROJECT_NAME}
