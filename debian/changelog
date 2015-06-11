@@ -1,3 +1,16 @@
+murano (2015.1.0-4) unstable; urgency=medium
+
+  * Make murano build reproduceable (Closes: #788396). Thanks to Juan Picca
+    <jumapico@gmail.com> for the bug report and patch.
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 11 Jun 2015 19:28:37 +0200
+
+murano (2015.1.0-3) unstable; urgency=medium
+
+  * Added fr.po debconf translation (Closes: #785227).
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 11 Jun 2015 10:36:41 +0200
+
 murano (2015.1.0-2) unstable; urgency=medium
 
   * Added pt.po debconf translation (Closes: #784594).

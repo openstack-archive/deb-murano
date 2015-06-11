@@ -5,6 +5,10 @@ PYTHON3S:=$(shell py3versions -vr)
 
 UPSTREAM_GIT = git://github.com/stackforge/murano.git
 
+LAST_CHANGE=$(shell dpkg-parsechangelog -S Date)
+BUILD_DATE=$(shell LC_ALL=C date -u "+%B %d, %Y" -d "$(LAST_CHANGE)")
+SPHINXOPTS := -D html_last_updated_fmt="$(BUILD_DATE)"
+
 include /usr/share/openstack-pkg-tools/pkgos.make
 export OSLO_PACKAGE_VERSION=$(VERSION)
 
@@ -29,7 +33,7 @@ endif
 
 override_dh_sphinxdoc:
 ifeq (,$(findstring nodocs, $(DEB_BUILD_OPTIONS)))
-	PYTHONPATH=. sphinx-build -b html doc/source $(CURDIR)/debian/murano-doc/usr/share/doc/murano-doc/html
+	PYTHONPATH=. sphinx-build $(SPHINXOPTS) -b html doc/source $(CURDIR)/debian/murano-doc/usr/share/doc/murano-doc/html
 	dh_sphinxdoc -O--buildsystem=python_distutils
 endif
 
