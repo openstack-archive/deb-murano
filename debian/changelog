@@ -1,3 +1,9 @@
+murano (2015.1.0-5) unstable; urgency=medium
+
+  * Also purges /var/cache/murano (Closes: #788832).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 15 Jun 2015 15:32:10 +0200
+
 murano (2015.1.0-4) unstable; urgency=medium
 
   * Make murano build reproduceable (Closes: #788396). Thanks to Juan Picca
