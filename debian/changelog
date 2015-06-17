@@ -1,3 +1,10 @@
+murano (2015.1.0-6) unstable; urgency=medium
+
+  * Added French debconf translation thanks to Julien Patriarca
+    <leatherface@debian.org> (Closes: #789033).
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 17 Jun 2015 14:50:46 +0200
+
 murano (2015.1.0-5) unstable; urgency=medium
 
   * Also purges /var/cache/murano (Closes: #788832).
