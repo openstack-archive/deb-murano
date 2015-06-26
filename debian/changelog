@@ -1,3 +1,9 @@
+murano (2015.1.0-7) unstable; urgency=medium
+
+  * Removes python-lockfile dependency (Closes: #789888).
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 26 Jun 2015 15:37:29 +0200
+
 murano (2015.1.0-6) unstable; urgency=medium
 
   * Added French debconf translation thanks to Julien Patriarca
