@@ -1,3 +1,11 @@
+murano (2015.1.0-8) unstable; urgency=medium
+
+  * Allow running with SQLA 1.0.6:
+    - Rebuilt with new depends (Closes: #790644).
+    - Fixes requirements.txt.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 01 Jul 2015 02:53:54 +0000
+
 murano (2015.1.0-7) unstable; urgency=medium
 
   * Removes python-lockfile dependency (Closes: #789888).

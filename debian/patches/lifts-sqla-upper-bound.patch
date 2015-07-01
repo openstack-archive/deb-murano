@@ -1,0 +1,16 @@
+Description: Allow working with new uploaded SQLA 1.0.6
+Author: Thomas Goirand <zigo@debian.org>
+Forwarded: no
+Last-Update: 2015-07-01
+
+--- murano-2015.1.0.orig/requirements.txt
++++ murano-2015.1.0/requirements.txt
+@@ -3,7 +3,7 @@
+ # process, which may cause wedges in the gate later.
+ pbr>=0.6,!=0.7,<1.0
+ Babel>=1.3
+-SQLAlchemy>=0.9.7,<=0.9.99
++SQLAlchemy>=0.9.7
+ stevedore>=1.3.0,<1.4.0  # Apache-2.0
+ alembic>=0.7.2
+ eventlet>=0.16.1,!=0.17.0
