@@ -18,33 +18,33 @@ Glossary
 
 * **Environment**
 
-    Environment is a set of applications managed by a single tenant. They could be related logically with each other or not.
-    Applications within single Environment may comprise some complex configuration while applications in different Environments are always
-    independent from one another. Each Environment is associated with single
+    The environment is a set of applications managed by a single tenant. They could be related logically with each other or not.
+    Applications within a single environment may comprise of complex configuration while applications in different environments are always
+    independent from one another. Each environment is associated with a single
     OpenStack project (tenant).
 
 .. _`sessions`:
 
 * **Session**
 
-    Since Murano environment are available for local modification for different users and from different locations, it's needed to store local modifications somewhere.
-    So sessions were created to provide this opportunity. After user adds application to the environment - new session is created.
-    After user sends environment to deploy, session with set of applications changes status to *deploying* and all other open sessions for that environment becomes invalid.
+    Since murano environments are available for local modification for different users and from different locations, it's needed to store local modifications somewhere.
+    Sessions were created to provide this opportunity. After a user adds an application to the environment - a new session is created.
+    After a user sends an environment to deploy, a session with a set of applications changes status to *deploying* and all other open sessions for that environment become invalid.
     One session could be deployed only once.
 
 * **Object Model**
 
-    Applications are defined in MuranoPL object model, which is defined as JSON object.
-    Murano API doesn't know anything about it.
+    Applications are defined in MuranoPL object model, which is defined as a JSON object.
+    The murano API doesn't know anything about it.
 
 * **Package**
 
     A .zip archive, containing instructions for an application deployment.
 
 * **Environment-Template**
-    The Environment template is the specification of a set of applications managed by a single tenant, which are
-    related each other. The environment template is stored in a environment template catalogue, and it can be
-    managed by the user (creation, deletion, updating...). Finally, it can be deployed on Openstack by translating
+    The environment template is the specification of a set of applications managed by a single tenant, which are
+    related to each other. The environment template is stored in an environment template catalog, and it can be
+    managed by the user (creation, deletion, updating). Finally, it can be deployed on OpenStack by translating
     into an environment.
 
 
@@ -82,7 +82,7 @@ Environment API
 | 401            | User is not authorized to perform the operation           |
 +----------------+-----------------------------------------------------------+
 
-List Environments
+List environments
 -----------------
 
 *Request*
@@ -98,7 +98,7 @@ List Environments
 *Response*
 
 
-This call returns list of environments. Only the basic properties are
+This call returns a list of environments. Only the basic properties are
 returned.
 
 ::
@@ -128,7 +128,7 @@ returned.
         ]
     }
 
-Create Environment
+Create environment
 ------------------
 
 +----------------------+------------+--------------------------------------------------------+
@@ -165,7 +165,7 @@ Create Environment
     }
 
 
-Update Environment
+Update environment
 ------------------
 
 +----------------------+------------+--------------------------------------------------------+
@@ -204,12 +204,27 @@ Update Environment
         "version": 0
     }
 
-Get Environment Details
++----------------+-----------------------------------------------------------+
+| Code           | Description                                               |
++================+===========================================================+
+| 200            | Edited environment                                        |
++----------------+-----------------------------------------------------------+
+| 400            | Environment name must contain only alphanumeric or '_-.'  |
+|                | characters, must start with alpha                         |
++----------------+-----------------------------------------------------------+
+| 401            | User is not authorized to access environment              |
++----------------+-----------------------------------------------------------+
+| 404            | Environment not found                                     |
++----------------+-----------------------------------------------------------+
+| 409            | Environment with specified name already exists            |
++----------------+-----------------------------------------------------------+
+
+Get environment details
 -----------------------
 
 *Request*
 
-Return information about environment itself and about applications, including to this environment.
+Return information about the environment itself and about applications, including this environment.
 
 +----------+----------------------------------+-----------------------------------+----------------------------------+
 | Method   | URI                              | Header                            | Description                      |
@@ -262,7 +277,7 @@ Return information about environment itself and about applications, including to
         "id": "20d4a012628e4073b48490a336a8acbf"
     }
 
-Delete Environment
+Delete environment
 ------------------
 
 *Request*
@@ -271,10 +286,31 @@ Delete Environment
 +----------+----------------------------------+----------------------------------+
 | Method   | URI                              | Description                      |
 +==========+==================================+==================================+
-| DELETE   | /environments/{id}               | Remove specified Environment.    |
+| DELETE   | /environments/{id}?abandon       | Remove specified Environment.    |
 +----------+----------------------------------+----------------------------------+
 
-Environment Configuration API
+
+*Parameters:*
+
+* `abandon` - boolean, indicates how to delete environment. *False* is used if
+  all resources used by environment must be destroyed; *True* is used when just
+  database must be cleaned
+
+
+*Response*
+
++----------------+-----------------------------------------------------------+
+| Code           | Description                                               |
++================+===========================================================+
+| 200            | OK. Environment deleted successfully                      |
++----------------+-----------------------------------------------------------+
+| 403            | User is not allowed to delete this resource               |
++----------------+-----------------------------------------------------------+
+| 404            | Not found. Specified environment doesn`t exist            |
++----------------+-----------------------------------------------------------+
+
+
+Environment configuration API
 =============================
 
 Multiple `sessions`_ could be opened for one environment simultaneously, but only one session going
@@ -303,7 +339,7 @@ User could not open new session for environment that in
 |                      |            | deployed                                  |
 +----------------------+------------+-------------------------------------------+
 
-Configure Environment / Open session
+Configure environment / open session
 ------------------------------------
 
 During this call new working session is created, and session ID should be sent in a request header with name ``X-Configuration-Session``.
@@ -344,10 +380,10 @@ During this call new working session is created, and session ID should be sent i
 |                | deploying status                                          |
 +----------------+-----------------------------------------------------------+
 
-Deploy Session
+Deploy session
 --------------
 
-With this request all local changes made within environment start to deploy on Openstack.
+With this request all local changes made within the environment start to deploy on OpenStack.
 
 *Request*
 
@@ -371,7 +407,7 @@ With this request all local changes made within environment start to deploy on O
 | 403            | Session is already deployed or deployment is in progress  |
 +----------------+-----------------------------------------------------------+
 
-Get Session Details
+Get session details
 -------------------
 
 *Request*
@@ -408,7 +444,7 @@ Get Session Details
 | 403            | Session is invalid                                        |
 +----------------+-----------------------------------------------------------+
 
-Delete Session
+Delete session
 --------------
 
 *Request*
@@ -432,7 +468,7 @@ Delete Session
 | 403            | Session is in deploying state and could not be deleted    |
 +----------------+-----------------------------------------------------------+
 
-Environment Deployments API
+Environment deployments API
 ===========================
 
 Environment deployment API allows to track changes of environment status, deployment events and errors.
@@ -519,19 +555,19 @@ Returns information about all deployments of the specified environment.
 | 401            | User is not authorized to access this environment         |
 +----------------+-----------------------------------------------------------+
 
-Application Management API
+Application management API
 ==========================
 
 All applications should be created within an environment and all environment modifications are held within the session.
 Local changes apply only after successful deployment of an environment session.
 
-Get Application Details
+Get application details
 -----------------------
 
 Using GET requests to applications endpoint user works with list containing all
-applications for specified environment. User can request whole list,
-specific application, or specific attribute of specific application using tree
-traversing. To request specific application, user should add to endpoint part
+applications for specified environment. A user can request a whole list,
+specific application, or specific attribute of a specific application using tree
+traversing. To request a specific application, the user should add to endpoint part
 an application id, e.g.: */environments/<env_id>/services/<application_id>*. For
 selection of specific attribute on application, simply appending part with
 attribute name will work. For example to request application name, user
@@ -581,7 +617,7 @@ should use next endpoint: */environments/<env_id>/services/<application_id>/name
 POST applications
 -----------------
 
-New application can be added to the Murano environment using session.
+New application can be added to the murano environment using session.
 Result JSON is calculated in Murano dashboard, which based on `UI definition <Dynamic UI Spec>`_
 
 *Request*
@@ -671,7 +707,7 @@ Statistic API
 
 Statistic API intends to provide billing feature
 
-Instance Environment Statistics
+Instance environment statistics
 -------------------------------
 
 *Request*
@@ -814,3 +850,84 @@ General Request Statistics
         }
     ]
 
+
+Actions API
+===========
+
+Murano Actions are simple MuranoPL methods, that can be called on deployed applications.
+Application contains a list with available actions. Actions may return a result.
+
+Execute an action
+-----------------
+
+Generate task with executing specified action. Input parameters may be provided.
+
+*Request*
+
+**Content-Type**
+  application/json
+
++----------------+-----------------------------------------------------------+------------------------------------+
+| Method         | URI                                                       | Header                             |
++================+===========================================================+====================================+
+| POST           | /environments/<env_id>/actions/<action_id>                |                                    |
++----------------+-----------------------------------------------------------+------------------------------------+
+
+**Parameters:**
+
+* `env_id` - environment ID, required
+* `actions_id` - action ID to execute, required
+
+::
+
+  "{<action_property>: value}"
+
+  or
+
+  "{}" in case action has no properties
+
+*Response*
+
+Task ID that executes specified action is returned
+
+**Content-Type**
+  application/json
+
+::
+
+  {
+      "task_id": "620e883070ad40a3af566d465aa156ef"
+  }
+
+GET action result
+-----------------
+
+Request result value after action execution finish. Not all actions have return values.
+
+
+*Request*
+
++----------------+-----------------------------------------------------------+------------------------------------+
+| Method         | URI                                                       | Header                             |
++================+===========================================================+====================================+
+| GET            | /environments/<env_id>/actions/<task_id>                  |                                    |
++----------------+-----------------------------------------------------------+------------------------------------+
+
+**Parameters:**
+
+* `env_id` - environment ID, required
+* `task_id` - task ID, generated on desired action execution
+
+*Response*
+
+Json, describing action result is returned. Result type and value are provided.
+
+**Content-Type**
+  application/json
+
+::
+
+    {
+      "isException": false,
+        "result": ["item1", "item2"]
+    }

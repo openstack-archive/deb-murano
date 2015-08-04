@@ -18,7 +18,7 @@ import urllib
 
 import fixtures
 import mock
-from oslo.utils import timeutils
+from oslo_utils import timeutils
 import routes
 import webob
 
@@ -172,9 +172,11 @@ class ControllerTest(object):
         return self._simple_request(path, params=params, user=user,
                                     tenant=tenant)
 
-    def _delete(self, path, user=DEFAULT_USER, tenant=DEFAULT_TENANT):
-        return self._simple_request(path, method='DELETE', user=user,
-                                    tenant=tenant)
+    def _delete(self, path, params=None, user=DEFAULT_USER,
+                tenant=DEFAULT_TENANT):
+        params = params or {}
+        return self._simple_request(path, params=params, method='DELETE',
+                                    user=user, tenant=tenant)
 
     def _data_request(self, path, data, content_type='application/json',
                       method='POST', params={},
@@ -206,7 +208,7 @@ class ControllerTest(object):
                                   params=params, user=user, tenant=tenant)
 
     def _set_policy_rules(self, rules):
-        policy.set_rules(rules)
+        policy.set_rules(rules, default_rule='default')
 
     def expect_policy_check(self, action, target={}):
         self._policy_check_expectations.append((action, target))

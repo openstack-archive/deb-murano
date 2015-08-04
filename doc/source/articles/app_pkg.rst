@@ -93,6 +93,10 @@ Example *telnet.yaml*
 
     Name: Telnet
 
+    # Inheritance from io.murano.Application class
+    # (located at Murano Core library) indicates,
+    # that this is a complete application
+    # and that 'deploy' method has to be defined.
     Extends: std:Application
 
     Properties:
@@ -103,23 +107,29 @@ Example *telnet.yaml*
         Contract: $.class(res:Instance).notNull()
 
 
-    Workflow:
+    Methods:
       deploy:
         Body:
+          # Determine the environment to which the application belongs.
+          # This message will be stored in deployment logs and available in UI
           - $this.find(std:Environment).reporter.report($this, 'Creating VM for Telnet instace.')
+          # Deploy VM
           - $.instance.deploy()
           - $this.find(std:Environment).reporter.report($this, 'Instance is created. Setup Telnet service.')
+          # Create instance of murano resource class. Agent will use it to find
+          # corresponding execution plan by the file name
           - $resources: new('io.murano.system.Resources')
           # Deploy Telnet
           - $template: $resources.yaml('DeployTelnet.template')
+          # Send prepared execution plan to Murano agent
           - $.instance.agent.call($template, $resources)
           - $this.find(std:Environment).reporter.report($this, 'Telnet service setup is done.')
 
 
 Note, that
 
-* *io.murano.system.Resources* is a system class, defined in MuranoPL. More information about MuranoPL system classes is available here: :ref:`class_definitions`.
-* *io.murano.resources.Instance* is a class, defined in the core Murano library, which is available here. :ref:`This library <core_library>` contains Murano Agent templates and virtual machine initialization scripts.
+* *io.murano.system.Resources* is a system class, defined in MuranoPL. MuranoPL system classes are described `here <http://git.openstack.org/cgit/openstack/murano/tree/meta/io.murano/Classes>`_.
+* *io.murano.resources.Instance* is a class, defined in the core Murano library, contains Murano Agent templates and virtual machine initialization scripts.
 * $this.find(std:Environment).reporter.report($this, 'Creating VM for Telnet instance.') - this is the way of sending reports to Murano dashboard during deployment
 
 Step 3.  Prepare dynamic UI form definition
@@ -147,7 +157,7 @@ General application metadata should be described in the application manifest fil
 * **Author** - person or company name which created an application package
 * **Classes** - MuranoPL class list, on which application deployment is based
 * **Tags** - list of words, associated with this application. Will be helpful during the search. *Optional* parameter
-* **Require** - list of applications with versions, required by this application. Currently only used by repository importing mechanism. *Optional* parameter
+* **Require** - a dict of application names with versions, required by this application. Currently only used by repository importing mechanism. Versions can be omitted (or set to null), in that case package with no version would be imported. *Optional* parameter
 
 .. _Telnet Manifest:
 
@@ -169,6 +179,7 @@ Example *manifest.yaml*
     Logo: telnet.png
     Require:
       io.murano.apps.TelnetHelper: 0.0.1
+      io.murano.apps.TelnetDoc:
 
 Step 6.  Prepare images.lst file
 ================================
@@ -184,18 +195,28 @@ Example *images.lst*
     - Name: 'my_image.qcow2'
       Hash: '64d7c1cd2b6f60c92c14662941cb7913'
       Meta:
-        title: 'tef'
+        title: 'This Name Helps Me Select This Image'
         type: 'linux'
       DiskFormat: qcow2
       ContainerFormat: bare
     - Name: 'my_other_image.qcow2'
       Hash: '64d7c1cd2b6f60c92c14662941cb7913'
       Meta:
-        title: 'tef'
+        title: 'This Name Helps Me Select This Image'
         type: 'linux'
       DiskFormat: qcow2
       ContainerFormat: bare
       Url: 'http://path.to/images/file.qcow2'
+
+.. note ::
+
+     ``Hash`` key is ignored right now.
+     If you have 2 apps, both of which require the same image, importing these
+     apps can cause this image to be downloaded twice. This situation occurs,
+     because image hash is not available until the moment glance downloads it.
+     It produces a situation, when there are two images with the same name
+     (but with different hashes). If image name is written in the app
+     definition, heat would not be able to create the template, based on that definition.
 
 If *Url* is omitted - the images would be searched for in the Murano Repository.
 

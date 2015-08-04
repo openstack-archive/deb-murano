@@ -15,8 +15,8 @@
 """
 SQLAlchemy models for murano data
 """
-from oslo.db.sqlalchemy import models
-from oslo.utils import timeutils
+from oslo_db.sqlalchemy import models
+from oslo_utils import timeutils
 import sqlalchemy as sa
 from sqlalchemy.ext import declarative
 from sqlalchemy import orm as sa_orm
@@ -56,6 +56,8 @@ Base = declarative.declarative_base(cls=_MuranoBase)
 class Environment(Base, TimestampMixin):
     """Represents a Environment in the metadata-store."""
     __tablename__ = 'environment'
+    __table_args__ = (sa.Index(
+        'ix_name_tenant_id', 'name', 'tenant_id', unique=True),)
 
     id = sa.Column(sa.String(255),
                    primary_key=True,

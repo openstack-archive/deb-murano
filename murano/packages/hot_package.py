@@ -116,12 +116,12 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         contract = '$'
 
         parameter_type = value['type']
-        if parameter_type == 'string':
+        if parameter_type in ('string', 'comma_delimited_list', 'json'):
             contract += '.string()'
         elif parameter_type == 'number':
             contract += '.int()'
-        elif parameter_type == 'json':
-            contract += '.object()'
+        elif parameter_type == 'boolean':
+            contract += '.bool()'
         else:
             raise ValueError('Unsupported parameter type ' + parameter_type)
 
@@ -205,6 +205,10 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         for key, value in (hot.get('parameters') or {}).items():
             template_parameters[key] = YAQL("$." + key)
 
+        copy_outputs = []
+        for key, value in (hot.get('outputs') or {}).items():
+            copy_outputs.append({YAQL('$.' + key): YAQL('$outputs.' + key)})
+
         deploy = [
             {YAQL('$environment'): YAQL(
                 "$.find('io.murano.Environment').require()"
@@ -222,7 +226,6 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                 "new('io.murano.system.HeatStack', "
                 "name => $.getAttr(generatedHeatStackName))")},
 
-
             YAQL("$reporter.report($this, "
                  "'Application deployment has started')"),
 
@@ -232,19 +235,29 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             YAQL('$stack.setTemplate($template)'),
             YAQL('$stack.setParameters($parameters)'),
 
-            YAQL("$reporter.report($this, "
-                 "'Stack creation has started')"),
-            YAQL('$stack.push()'),
-            {YAQL('$outputs'): YAQL('$stack.output()')},
-            YAQL("$reporter.report($this, "
-                 "'Stack was successfully created')"),
+            YAQL("$reporter.report($this, 'Stack creation has started')"),
+            {
+                'Try': [YAQL('$stack.push()')],
+                'Catch': [
+                    {
+                        'As': 'e',
+                        'Do': [
+                            YAQL("$reporter.report_error($this, $e.message)"),
+                            {'Rethrow': None}
+                        ]
+                    }
+                ],
+                'Else': [
+                    {YAQL('$outputs'): YAQL('$stack.output()')},
+                    {'Do': copy_outputs},
+                    YAQL("$reporter.report($this, "
+                         "'Stack was successfully created')"),
 
-            YAQL("$reporter.report($this, "
-                 "'Application deployment has finished')"),
+                    YAQL("$reporter.report($this, "
+                         "'Application deployment has finished')"),
+                ]
+            }
         ]
-        for key, value in (hot.get('outputs') or {}).items():
-            deploy.append({YAQL('$.' + key): YAQL(
-                '$outputs.' + key)})
 
         destroy = [
             {YAQL('$stack'): YAQL(
@@ -266,7 +279,10 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
 
     @staticmethod
     def _translate_ui_parameters(hot, title):
-        result = [
+        groups = hot.get('parameter_groups', [])
+        result_groups = []
+
+        predefined_fields = [
             {
                 'name': 'title',
                 'type': 'string',
@@ -284,9 +300,32 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                         ' Just A-Z, a-z, 0-9, and dash are allowed'
             }
         ]
-        for key, value in (hot.get('parameters') or {}).items():
-            result.append(HotPackage._translate_ui_parameter(key, value))
-        return result
+        used_parameters = set()
+        hot_parameters = hot.get('parameters') or {}
+        for group in groups:
+            fields = []
+            properties = []
+            for parameter in group.get('parameters', []):
+                parameter_value = hot_parameters.get(parameter)
+                if parameter_value:
+                    fields.append(HotPackage._translate_ui_parameter(
+                        parameter, parameter_value))
+                    used_parameters.add(parameter)
+                    properties.append(parameter)
+            result_groups.append((fields, properties))
+
+        rest_group = []
+        properties = []
+        for key, value in hot_parameters.iteritems():
+            if key not in used_parameters:
+                rest_group.append(HotPackage._translate_ui_parameter(
+                    key, value))
+                properties.append(key)
+        if rest_group:
+            result_groups.append((rest_group, properties))
+
+        result_groups.insert(0, (predefined_fields, ['name']))
+        return result_groups
 
     @staticmethod
     def _translate_ui_parameter(name, parameter_spec):
@@ -295,10 +334,19 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             'label': name.title().replace('_', ' ')
         }
         parameter_type = parameter_spec['type']
-        if parameter_type == 'string':
-            translated['type'] = 'string'
-        elif parameter_type == 'number':
+        if parameter_type == 'number':
             translated['type'] = 'integer'
+        elif parameter_type == 'boolean':
+            translated['type'] = 'boolean'
+        else:
+            # string, json, and comma_delimited_list parameters are all
+            # displayed as strings in UI. Any unsuported parameter would also
+            # be displayed as strings.
+            translated['type'] = 'string'
+
+        label = parameter_spec.get('label')
+        if label:
+            translated['label'] = label
 
         if 'description' in parameter_spec:
             translated['description'] = parameter_spec['description']
@@ -370,15 +418,17 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         return translated
 
     @staticmethod
-    def _generate_application_ui(hot, type_name):
+    def _generate_application_ui(groups, type_name):
         app = {
             '?': {
                 'type': type_name
             }
         }
-        for key in (hot.get('parameters') or {}).keys():
-            app[key] = YAQL('$.appConfiguration.' + key)
-        app['name'] = YAQL('$.appConfiguration.name')
+        for i, record in enumerate(groups):
+            for property_name in record[1]:
+                app[property_name] = YAQL(
+                    '$.group{0}.{1}'.format(i, property_name))
+        app['name'] = YAQL('$.group0.name')
 
         return app
 
@@ -391,18 +441,15 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         with open(template_file) as stream:
             hot = yaml.safe_load(stream)
 
+        groups = HotPackage._translate_ui_parameters(hot, self.description)
+        forms = []
+        for i, record in enumerate(groups):
+            forms.append({'group{0}'.format(i): {'fields': record[0]}})
+
         translated = {
             'Version': 2,
             'Application': HotPackage._generate_application_ui(
-                hot, self.full_name),
-            'Forms': [
-                {
-                    'appConfiguration': {
-                        'fields': HotPackage._translate_ui_parameters(
-                            hot, self.description)
-                    }
-                }
-            ]
+                groups, self.full_name),
+            'Forms': forms
         }
-
         return translated

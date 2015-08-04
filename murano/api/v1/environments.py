@@ -14,7 +14,7 @@
 
 import re
 
-from oslo.db import exception as db_exc
+from oslo_db import exception as db_exc
 from sqlalchemy import desc
 from webob import exc
 
@@ -34,7 +34,7 @@ LOG = logging.getLogger(__name__)
 
 API_NAME = 'Environments'
 
-VALID_NAME_REGEX = re.compile('^[a-zA-Z]+[\w-]*$')
+VALID_NAME_REGEX = re.compile('^[a-zA-Z]+[\w.-]*$')
 
 
 class Controller(object):
@@ -52,10 +52,10 @@ class Controller(object):
 
     @request_statistics.stats_count(API_NAME, 'Create')
     def create(self, request, body):
-        LOG.debug('Environments:Create <Body {0}>'.format(body))
+        LOG.debug(u'Environments:Create <Body {0}>'.format(body))
         policy.check('create_environment', request.context)
-        LOG.debug('ENV NAME: {0}>'.format(body['name']))
-        if VALID_NAME_REGEX.match(str(body['name'])):
+        name = unicode(body['name'])
+        if VALID_NAME_REGEX.match(name):
             try:
                 environment = envs.EnvironmentServices.create(
                     body.copy(),
@@ -126,8 +126,13 @@ class Controller(object):
 
         LOG.debug('ENV NAME: {0}>'.format(body['name']))
         if VALID_NAME_REGEX.match(str(body['name'])):
-            environment.update(body)
-            environment.save(session)
+            try:
+                environment.update(body)
+                environment.save(session)
+            except db_exc.DBDuplicateEntry:
+                msg = _('Environment with specified name already exists')
+                LOG.exception(msg)
+                raise exc.HTTPConflict(explanation=msg)
         else:
             msg = _('Environment name must contain only alphanumeric '
                     'or "_-." characters, must start with alpha')
@@ -138,14 +143,18 @@ class Controller(object):
 
     @request_statistics.stats_count(API_NAME, 'Delete')
     def delete(self, request, environment_id):
-        LOG.debug('Environments:Delete <Id: {0}>'.format(environment_id))
         target = {"environment_id": environment_id}
         policy.check('delete_environment', request.context, target)
-        sessions_controller = sessions.Controller()
-        session = sessions_controller.configure(request, environment_id)
-        session_id = session['id']
-        envs.EnvironmentServices.delete(environment_id, session_id)
-        sessions_controller.deploy(request, environment_id, session_id)
+        if request.GET.get('abandon', '').lower() == 'true':
+            LOG.debug('Environments:Abandon  <Id: {0}>'.format(environment_id))
+            envs.EnvironmentServices.remove(environment_id)
+        else:
+            LOG.debug('Environments:Delete <Id: {0}>'.format(environment_id))
+            sessions_controller = sessions.Controller()
+            session = sessions_controller.configure(request, environment_id)
+            session_id = session['id']
+            envs.EnvironmentServices.delete(environment_id, session_id)
+            sessions_controller.deploy(request, environment_id, session_id)
 
     @request_statistics.stats_count(API_NAME, 'LastStatus')
     def last(self, request, environment_id):

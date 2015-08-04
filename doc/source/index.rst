@@ -17,8 +17,20 @@
 Welcome to Murano!
 ==================
 
+|
+
+.. note::
+   The latest version of this documentation is under development at the moment.
+   The most recently updated information is published as the :ref:`BETA version of
+   the Murano documentation <content>`.
+
+   We are restructuring and updating the information to make your user experience awesome,
+   and apologize for any inconvenience this may cause.
+
+|
+
 Introduction
-============
+~~~~~~~~~~~~
 
 Murano Project introduces an application catalog, which allows application
 developers and cloud administrators to publish various cloud-ready applications
@@ -46,9 +58,23 @@ Murano consists of several source code repositories:
 .. _murano-dashboard: https://git.openstack.org/cgit/openstack/murano-dashboard/
 .. _python-muranoclient: https://git.openstack.org/cgit/openstack/python-muranoclient/
 
-
 This documentation offers information on how Murano works and how to
 contribute to the project.
+
+Developing Applications
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 2
+
+   draft/appdev-guide/step_by_step
+   draft/appdev-guide/exec_plan
+   draft/appdev-guide/hot_packages
+   draft/appdev-guide/murano_pl
+   draft/appdev-guide/murano_packages
+   draft/appdev-guide/examples
+   draft/appdev-guide/use_cases
+   draft/appdev-guide/faq
 
 
 **Installation**
@@ -63,8 +89,6 @@ contribute to the project.
 .. toctree::
    :maxdepth: 1
 
-   murano_pl/murano_pl_index
-   articles/dynamic_ui
    articles/workflow
    articles/policy_enf_index
 
@@ -86,13 +110,6 @@ contribute to the project.
 
    articles/client
 
-**Repository**
-
-.. toctree::
-   :maxdepth: 1
-
-   articles/repository
-
 **Guidelines**
 
 .. toctree::
@@ -111,9 +128,11 @@ contribute to the project.
 
    specification/index
 
+
 Indices and tables
-==================
+~~~~~~~~~~~~~~~~~~
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+

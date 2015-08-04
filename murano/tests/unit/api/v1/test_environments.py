@@ -1,3 +1,4 @@
+# coding: utf-8
 # Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +16,8 @@
 
 import json
 
-from oslo.config import cfg
-from oslo.utils import timeutils
+from oslo_config import cfg
+from oslo_utils import timeutils
 
 from murano.api.v1 import environments
 from murano.common import config
@@ -112,6 +113,20 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         result = req.get_response(self.api)
         self.assertEqual(400, result.status_code)
 
+    def test_unicode_environment_name_create(self):
+        """Check that an unicode env name results in an HTTPClientError."""
+        self._set_policy_rules(
+            {'list_environments': '@',
+             'create_environment': '@',
+             'show_environment': '@'}
+        )
+        self.expect_policy_check('create_environment')
+
+        body = {'name': u'yaql ♥ unicode'.encode('utf-8')}
+        req = self._post('/environments', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+
     def test_missing_environment(self):
         """Check that a missing environment results in an HTTPNotFound."""
         self._set_policy_rules(
@@ -181,19 +196,37 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
         self.assertEqual(expected, json.loads(result.body))
 
-    def test_delete_environment(self):
-        """Test that environment deletion results in the correct rpc call."""
+    def test_update_environment_with_existing_name(self):
         self._set_policy_rules(
-            {'delete_environment': '@'}
-        )
-        self.expect_policy_check(
-            'delete_environment', {'environment_id': '12345'}
+            {'update_environment': '@'}
         )
 
+        self._create_fake_environment('env1', '111')
+        self._create_fake_environment('env2', '222')
+
+        self.expect_policy_check('update_environment',
+                                 {'environment_id': '111'})
+
+        body = {
+            'name': 'env2'
+        }
+        req = self._put('/environments/111', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(409, result.status_code)
+
+    def test_delete_environment(self):
+        """Test that environment deletion results in the correct rpc call."""
+        self._test_delete_or_abandon(abandon=False)
+
+    def test_abandon_environment(self):
+        """Cjeck that abandon feature works"""
+        self._test_delete_or_abandon(abandon=True)
+
+    def _create_fake_environment(self, env_name='my-env', env_id='123'):
         fake_now = timeutils.utcnow()
         expected = dict(
-            id='12345',
-            name='my-env',
+            id=env_id,
+            name=env_name,
             version=0,
             networking={},
             created=fake_now,
@@ -201,7 +234,7 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
             tenant_id=self.tenant,
             description={
                 'Objects': {
-                    '?': {'id': '12345'}
+                    '?': {'id': '{0}'.format(env_id)}
                 },
                 'Attributes': {}
             }
@@ -209,7 +242,21 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         e = models.Environment(**expected)
         test_utils.save_models(e)
 
-        req = self._delete('/environments/12345')
+    def _test_delete_or_abandon(self, abandon, env_name='my-env',
+                                env_id='123'):
+        self._set_policy_rules(
+            {'delete_environment': '@'}
+        )
+        self.expect_policy_check(
+            'delete_environment',
+            {'environment_id': '{0}'.format(env_id)}
+        )
+
+        self._create_fake_environment(env_name, env_id)
+
+        path = '/environments/{0}'.format(env_id)
+
+        req = self._delete(path, params={'abandon': abandon})
         result = req.get_response(self.api)
 
         # Should this be expected behavior?

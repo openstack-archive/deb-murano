@@ -17,7 +17,7 @@
 Linux Image
 ===========
 
-At the moment the best way to build a Linux image with Murano agent is
+At the moment the best way to build a Linux image with the murano agent is
 to use disk image builder.
 
 
@@ -40,9 +40,9 @@ Clone the components required to build an image to that directory:
 .. code-block:: console
 
     $ cd $GITDIR
-    $ git clone git://git.openstack.org/cgit/openstack/murano
-    $ git clone git://git.openstack.org/cgit/openstack/murano-agent
-    $ git clone git://git.openstack.org/cgit/openstack/diskimage-builder
+    $ git clone git://git.openstack.org/openstack/murano
+    $ git clone git://git.openstack.org/openstack/murano-agent
+    $ git clone git://git.openstack.org/openstack/diskimage-builder
 
 
 Checkout a change request that allows to build an image using disk image builder
@@ -68,7 +68,7 @@ Export paths where additional dib elements are located:
     $ export ELEMENTS_PATH=$GITDIR/murano/contrib/elements:$GITDIR/murano-agent/contrib/elements
 
 
-And build Ubuntu-based image with Murano agent:
+And build Ubuntu-based image with the murano agent:
 
 .. code-block:: console
 
@@ -76,8 +76,8 @@ And build Ubuntu-based image with Murano agent:
     $ tox -e venv -- disk-image-create vm ubuntu murano-agent -o ../murano-agent.qcow2
 
 
-If you need Fedora based image replace 'ubuntu' to 'fedora' in the last command.
+If you need a Fedora based image, replace 'ubuntu' to 'fedora' in the last command.
 
 It'll take a while (up to 30 minutes if your hard drive and internet connection are slow).
 
-When done upload murano-agent.qcow2 image to Glance and play :)
+When you are done upload the murano-agent.qcow2 image to glance and play :)
