@@ -1,8 +1,9 @@
-murano (1:1.0.0~b1-1) unstable; urgency=low
+murano (1:1.0.0~b1-1) experimental; urgency=low
 
-  * New upstream beta version 1.0.0.0b1
-  * Remove removed-lockfile-from-requirements patch
-  * Remove remove-the-use-of-PROTOCOL_SSLv3 patch
+  * New upstream release.
+  * Remove removed-lockfile-from-requirements patch.
+  * Remove remove-the-use-of-PROTOCOL_SSLv3 patch.
+  * Remove patches-.testr.conf-for-test-discovery-folder patch.
 
  -- Ivan Udovichenko <iudovichenko@mirantis.com>  Thu, 16 Jul 2015 22:39:35 +0300
 
