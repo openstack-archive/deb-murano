@@ -19,10 +19,11 @@ from oslo_config import cfg
 from oslo_utils import timeutils
 
 from murano.api.v1 import templates
-from murano.common import config
 from murano.db import models
 import murano.tests.unit.api.base as tb
 import murano.tests.unit.utils as test_utils
+
+CONF = cfg.CONF
 
 
 class TestEnvTemplateApi(tb.ControllerTest, tb.MuranoApiTestCase):
@@ -99,6 +100,24 @@ class TestEnvTemplateApi(tb.ControllerTest, tb.MuranoApiTestCase):
         req = self._post('/templates', json.dumps(body))
         result = req.get_response(self.api)
         self.assertEqual(400, result.status_code)
+
+    def test_too_long_template_name_create(self):
+        """Check that a long template name results in an HTTPBadResquest."""
+        self._set_policy_rules(
+            {'list_env_templates': '@',
+             'create_env_template': '@',
+             'show_env_template': '@'}
+        )
+        self.expect_policy_check('create_env_template')
+
+        body = {'name': 'a' * 256}
+        req = self._post('/templates', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        self.assertIn('Environment Template name should be 255 characters '
+                      'maximum',
+                      result_msg)
 
     def test_mallformed_body(self):
         """Check that an illegal temp name results in an HTTPClientError."""
@@ -430,7 +449,7 @@ class TestEnvTemplateApi(tb.ControllerTest, tb.MuranoApiTestCase):
             cfg.StrOpt('config_file', default='murano.conf'),
             cfg.StrOpt('project', default='murano'),
         ]
-        config.CONF.register_opts(opts)
+        CONF.register_opts(opts)
         self._set_policy_rules(
             {'create_env_template': '@',
              'create_environment': '@'}
@@ -459,7 +478,7 @@ class TestEnvTemplateApi(tb.ControllerTest, tb.MuranoApiTestCase):
             cfg.StrOpt('config_file', default='murano.conf'),
             cfg.StrOpt('project', default='murano'),
         ]
-        config.CONF.register_opts(opts)
+        CONF.register_opts(opts)
         self._set_policy_rules(
             {'create_env_template': '@',
              'create_environment': '@'}

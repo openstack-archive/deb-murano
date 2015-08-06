@@ -15,14 +15,15 @@
 
 import json
 
+import cfg
 import glanceclient
+from oslo_log import log as logging
+
 from murano.common import config
 import murano.dsl.helpers as helpers
-from murano.openstack.common import log as logging
-
-import cfg
 
 
+CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
@@ -64,7 +65,7 @@ class GlanceClient(object):
 
     @classmethod
     def init_plugin(cls):
-        cls.CONF = cfg.init_config(config.CONF)
+        cls.CONF = cfg.init_config(CONF)
 
     def create_glance_client(self, keystone_client, auth_token):
         LOG.debug("Creating a glance client")

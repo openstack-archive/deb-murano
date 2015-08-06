@@ -12,14 +12,15 @@
 # limitations under the License.
 
 import fixtures
-from oslo_config import cfg
+from oslo_log import log
 import testtools
 
+from murano.common import config
 from murano.db import api as db_api
-from murano.openstack.common import log
 
-CONF = cfg.CONF
-log.setup('murano')
+CONF = config.CONF
+log.register_options(CONF)
+log.setup(CONF, 'murano')
 
 
 class MuranoTestCase(testtools.TestCase):

@@ -33,18 +33,21 @@ root = os.path.join(os.path.abspath(__file__), os.pardir, os.pardir, os.pardir)
 if os.path.exists(os.path.join(root, 'murano', '__init__.py')):
     sys.path.insert(0, root)
 
+from oslo_log import log as logging
+from oslo_service import service
+
 from murano.common import config
 from murano.common import engine
-from murano.openstack.common import log
-from murano.openstack.common import service
+
+CONF = config.CONF
 
 
 def main():
     try:
         config.parse_args()
-        log.setup('murano')
 
-        launcher = service.ServiceLauncher()
+        logging.setup(CONF, 'murano')
+        launcher = service.ServiceLauncher(CONF)
         launcher.launch_service(engine.get_rpc_service())
 
         launcher.wait()

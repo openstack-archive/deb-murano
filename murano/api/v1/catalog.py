@@ -20,6 +20,7 @@ import tempfile
 import jsonschema
 from oslo_config import cfg
 from oslo_db import exception as db_exc
+from oslo_log import log as logging
 from webob import exc
 
 import murano.api.v1
@@ -29,7 +30,6 @@ from murano.common import policy
 from murano.common import wsgi
 from murano.db.catalog import api as db_api
 from murano.common.i18n import _, _LW
-from murano.openstack.common import log as logging
 from murano.packages import exceptions as pkg_exc
 from murano.packages import load_utils
 
@@ -299,12 +299,16 @@ class Controller(object):
 
     def add_category(self, req, body=None):
         policy.check("add_category", req.context)
-
-        if not body.get('name'):
+        category_name = body.get('name')
+        if not category_name:
             raise exc.HTTPBadRequest(
                 explanation='Please, specify a name of the category to create')
+        if len(category_name) > 80:
+            msg = _('Category name should be 80 characters maximum')
+            LOG.error(msg)
+            raise exc.HTTPBadRequest(explanation=msg)
         try:
-            category = db_api.category_add(body['name'])
+            category = db_api.category_add(category_name)
         except db_exc.DBDuplicateEntry:
             msg = _('Category with specified name is already exist')
             LOG.error(msg)

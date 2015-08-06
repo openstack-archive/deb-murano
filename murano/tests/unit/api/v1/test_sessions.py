@@ -19,8 +19,9 @@ from oslo_config import cfg
 
 from murano.api.v1 import environments
 from murano.api.v1 import sessions
-from murano.common import config
 import murano.tests.unit.api.base as tb
+
+CONF = cfg.CONF
 
 
 class TestSessionsApi(tb.ControllerTest, tb.MuranoApiTestCase):
@@ -43,7 +44,7 @@ class TestSessionsApi(tb.ControllerTest, tb.MuranoApiTestCase):
             cfg.StrOpt('config_file', default='murano.conf'),
             cfg.StrOpt('project', default='murano'),
         ]
-        config.CONF.register_opts(opts)
+        CONF.register_opts(opts)
 
         self._set_policy_rules(
             {'create_environment': '@'}
@@ -83,5 +84,5 @@ class TestSessionsApi(tb.ControllerTest, tb.MuranoApiTestCase):
         )
         response = request.get_response(self.api)
 
-        # Should be unauthorized!
-        self.assertEqual(response.status_code, 401)
+        # Should be forbidden!
+        self.assertEqual(response.status_code, 403)

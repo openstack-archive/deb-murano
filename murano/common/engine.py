@@ -17,12 +17,13 @@ import traceback
 import uuid
 
 import eventlet.debug
+from oslo_config import cfg
+from oslo_log import log as logging
 import oslo_messaging as messaging
 from oslo_messaging import target
 from oslo_serialization import jsonutils
 
 from murano.common import auth_utils
-from murano.common import config
 from murano.common.helpers import token_sanitizer
 from murano.common import plugin_loader
 from murano.common import rpc
@@ -36,9 +37,9 @@ from murano.engine import package_loader
 from murano.engine.system import status_reporter
 import murano.engine.system.system_objects as system_objects
 from murano.common.i18n import _LI, _LE
-from murano.openstack.common import log as logging
 from murano.policy import model_policy_enforcer as enforcer
 
+CONF = cfg.CONF
 
 RPC_SERVICE = None
 PLUGIN_LOADER = None
@@ -75,7 +76,7 @@ class TaskProcessingEndpoint(object):
 def _prepare_rpc_service(server_id):
     endpoints = [TaskProcessingEndpoint()]
 
-    transport = messaging.get_transport(config.CONF)
+    transport = messaging.get_transport(CONF)
     s_target = target.Target('murano', 'tasks', server=server_id)
     return messaging.get_rpc_server(transport, s_target, endpoints, 'eventlet')
 
@@ -130,16 +131,9 @@ class TaskExecutor(object):
         self._create_trust()
 
         try:
-            # !!! please do not delete 2 commented lines of code below.
-            # Uncomment to make engine load packages from
-            # local folder rather than from API !!!
-
-            # pkg_loader = package_loader.DirectoryPackageLoader('./meta')
-            # return self._execute(pkg_loader)
-
             murano_client_factory = lambda: \
                 self._environment.clients.get_murano_client(self._environment)
-            with package_loader.ApiPackageLoader(
+            with package_loader.CombinedPackageLoader(
                     murano_client_factory,
                     self._environment.tenant_id) as pkg_loader:
                 return self._execute(pkg_loader)
@@ -230,7 +224,7 @@ class TaskExecutor(object):
         }
 
     def _validate_model(self, obj, action, class_loader):
-        if config.CONF.engine.enable_model_policy_enforcer:
+        if CONF.engine.enable_model_policy_enforcer:
             if obj is not None:
                 if action is not None and action['method'] == 'deploy':
                     self._model_policy_enforcer.validate(obj.to_dictionary(),
@@ -244,7 +238,7 @@ class TaskExecutor(object):
             return obj.type.invoke(method_name, mpl_executor, obj, args)
 
     def _create_trust(self):
-        if not config.CONF.engine.use_trusts:
+        if not CONF.engine.use_trusts:
             return
         trust_id = self._environment.system_attributes.get('TrustId')
         if not trust_id:

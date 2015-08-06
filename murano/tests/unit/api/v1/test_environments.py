@@ -20,16 +20,26 @@ from oslo_config import cfg
 from oslo_utils import timeutils
 
 from murano.api.v1 import environments
-from murano.common import config
 from murano.db import models
 import murano.tests.unit.api.base as tb
 import murano.tests.unit.utils as test_utils
+
+CONF = cfg.CONF
 
 
 class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
     def setUp(self):
         super(TestEnvironmentApi, self).setUp()
         self.controller = environments.Controller()
+
+    @staticmethod
+    def _configure_opts():
+        opts = [
+            cfg.StrOpt('config_dir'),
+            cfg.StrOpt('config_file', default='murano.conf'),
+            cfg.StrOpt('project', default='murano'),
+        ]
+        CONF.register_opts(opts)
 
     def test_list_empty_environments(self):
         """Check that with no environments an empty list is returned."""
@@ -42,14 +52,35 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         result = req.get_response(self.api)
         self.assertEqual({'environments': []}, json.loads(result.body))
 
+    def test_list_all_tenants(self):
+        """Check whether all_tenants param is taken into account."""
+
+        self._configure_opts()
+        self._set_policy_rules(
+            {'list_environments': '@',
+             'create_environment': '@',
+             'list_environments_all_tenants': '@'}
+        )
+        self.expect_policy_check('create_environment')
+
+        body = {'name': 'my_env'}
+        req = self._post('/environments', json.dumps(body), tenant="other")
+        req.get_response(self.api)
+
+        self._check_listing(False, 'list_environments', 0)
+        self._check_listing(True, 'list_environments_all_tenants', 1)
+
+    def _check_listing(self, all_tenants, expected_check, expected_count):
+        self.expect_policy_check(expected_check)
+        req = self._get('/environments', {'all_tenants': all_tenants})
+        response = req.get_response(self.api)
+        body = json.loads(response.body)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(expected_count, len(body['environments']))
+
     def test_create_environment(self):
         """Create an environment, test environment.show()."""
-        opts = [
-            cfg.StrOpt('config_dir'),
-            cfg.StrOpt('config_file', default='murano.conf'),
-            cfg.StrOpt('project', default='murano'),
-        ]
-        config.CONF.register_opts(opts)
+        self._configure_opts()
         self._set_policy_rules(
             {'list_environments': '@',
              'create_environment': '@',
@@ -127,14 +158,29 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         result = req.get_response(self.api)
         self.assertEqual(400, result.status_code)
 
-    def test_missing_environment(self):
-        """Check that a missing environment results in an HTTPNotFound."""
+    def test_too_long_environment_name_create(self):
+        """Check that an too long env name results in an HTTPBadResquest."""
         self._set_policy_rules(
-            {'show_environment': '@'}
+            {'list_environments': '@',
+             'create_environment': '@',
+             'show_environment': '@'}
         )
-        self.expect_policy_check('show_environment',
-                                 {'environment_id': 'no-such-id'})
+        self.expect_policy_check('create_environment')
 
+        body = {'name': 'a' * 256}
+        req = self._post('/environments', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        self.assertIn('Environment name should be 255 characters maximum',
+                      result_msg)
+
+    def test_missing_environment(self):
+        """Check that a missing environment results in an HTTPNotFound.
+
+        Environment check will be made in the decorator and raises,
+        no need to check policy in this testcase.
+        """
         req = self._get('/environments/no-such-id')
         result = req.get_response(self.api)
         self.assertEqual(404, result.status_code)
@@ -216,11 +262,22 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
     def test_delete_environment(self):
         """Test that environment deletion results in the correct rpc call."""
-        self._test_delete_or_abandon(abandon=False)
+        result = self._test_delete_or_abandon(abandon=False)
+        self.assertEqual('', result.body)
+        self.assertEqual(200, result.status_code)
 
     def test_abandon_environment(self):
-        """Cjeck that abandon feature works"""
-        self._test_delete_or_abandon(abandon=True)
+        """Check that abandon feature works"""
+        result = self._test_delete_or_abandon(abandon=True)
+        self.assertEqual('', result.body)
+        self.assertEqual(200, result.status_code)
+
+    def test_abandon_environment_of_different_tenant(self):
+        """Test abandon environment belongs to another tenant."""
+        result = self._test_delete_or_abandon(abandon=True, tenant='not_match')
+        self.assertEqual(403, result.status_code)
+        self.assertTrue(('User is not authorized to access these'
+                         ' tenant resources') in result.body)
 
     def _create_fake_environment(self, env_name='my-env', env_id='123'):
         fake_now = timeutils.utcnow()
@@ -243,7 +300,7 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         test_utils.save_models(e)
 
     def _test_delete_or_abandon(self, abandon, env_name='my-env',
-                                env_id='123'):
+                                env_id='123', tenant=None):
         self._set_policy_rules(
             {'delete_environment': '@'}
         )
@@ -256,9 +313,8 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
         path = '/environments/{0}'.format(env_id)
 
-        req = self._delete(path, params={'abandon': abandon})
+        req = self._delete(path, params={'abandon': abandon},
+                           tenant=tenant or self.tenant)
         result = req.get_response(self.api)
 
-        # Should this be expected behavior?
-        self.assertEqual('', result.body)
-        self.assertEqual(200, result.status_code)
+        return result

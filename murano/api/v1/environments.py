@@ -15,11 +15,13 @@
 import re
 
 from oslo_db import exception as db_exc
+from oslo_log import log as logging
 from sqlalchemy import desc
 from webob import exc
 
 from murano.api.v1 import request_statistics
 from murano.api.v1 import sessions
+from murano.common.i18n import _
 from murano.common import policy
 from murano.common import utils
 from murano.common import wsgi
@@ -27,8 +29,8 @@ from murano.db import models
 from murano.db.services import core_services
 from murano.db.services import environments as envs
 from murano.db import session as db_session
-from murano.common.i18n import _, _LI
-from murano.openstack.common import log as logging
+from murano.utils import check_env
+from murano.utils import verify_env
 
 LOG = logging.getLogger(__name__)
 
@@ -40,11 +42,17 @@ VALID_NAME_REGEX = re.compile('^[a-zA-Z]+[\w.-]*$')
 class Controller(object):
     @request_statistics.stats_count(API_NAME, 'Index')
     def index(self, request):
-        LOG.debug('Environments:List')
-        policy.check('list_environments', request.context)
+        all_tenants = request.GET.get('all_tenants', 'false').lower() == 'true'
+        LOG.debug('Environments:List <all_tenants: {0}>'.format(all_tenants))
 
-        # Only environments from same tenant as user should be returned
-        filters = {'tenant_id': request.context.tenant}
+        if all_tenants:
+            policy.check('list_environments_all_tenants', request.context)
+            filters = {}
+        else:
+            policy.check('list_environments', request.context)
+            # Only environments from same tenant as user should be returned
+            filters = {'tenant_id': request.context.tenant}
+
         environments = envs.EnvironmentServices.get_environments_by(filters)
         environments = [env.to_dict() for env in environments]
 
@@ -55,6 +63,10 @@ class Controller(object):
         LOG.debug(u'Environments:Create <Body {0}>'.format(body))
         policy.check('create_environment', request.context)
         name = unicode(body['name'])
+        if len(name) > 255:
+            msg = _('Environment name should be 255 characters maximum')
+            LOG.exception(msg)
+            raise exc.HTTPBadRequest(explanation=msg)
         if VALID_NAME_REGEX.match(name):
             try:
                 environment = envs.EnvironmentServices.create(
@@ -73,6 +85,7 @@ class Controller(object):
         return environment.to_dict()
 
     @request_statistics.stats_count(API_NAME, 'Show')
+    @verify_env
     def show(self, request, environment_id):
         LOG.debug('Environments:Show <Id: {0}>'.format(environment_id))
         target = {"environment_id": environment_id}
@@ -80,17 +93,6 @@ class Controller(object):
 
         session = db_session.get_session()
         environment = session.query(models.Environment).get(environment_id)
-
-        if environment is None:
-            LOG.info(_LI('Environment <EnvId {0}> is not found').format(
-                environment_id))
-            raise exc.HTTPNotFound
-
-        if environment.tenant_id != request.context.tenant:
-            LOG.info(_LI('User is not authorized to access '
-                         'this tenant resources.'))
-            raise exc.HTTPUnauthorized
-
         env = environment.to_dict()
         env['status'] = envs.EnvironmentServices.get_status(env['id'])
 
@@ -105,6 +107,7 @@ class Controller(object):
         return env
 
     @request_statistics.stats_count(API_NAME, 'Update')
+    @verify_env
     def update(self, request, environment_id, body):
         LOG.debug('Environments:Update <Id: {0}, '
                   'Body: {1}>'.format(environment_id, body))
@@ -113,17 +116,6 @@ class Controller(object):
 
         session = db_session.get_session()
         environment = session.query(models.Environment).get(environment_id)
-
-        if environment is None:
-            LOG.info(_LI('Environment <EnvId {0}> not '
-                         'found').format(environment_id))
-            raise exc.HTTPNotFound
-
-        if environment.tenant_id != request.context.tenant:
-            LOG.info(_LI('User is not authorized to access '
-                         'this tenant resources.'))
-            raise exc.HTTPUnauthorized
-
         LOG.debug('ENV NAME: {0}>'.format(body['name']))
         if VALID_NAME_REGEX.match(str(body['name'])):
             try:
@@ -146,6 +138,7 @@ class Controller(object):
         target = {"environment_id": environment_id}
         policy.check('delete_environment', request.context, target)
         if request.GET.get('abandon', '').lower() == 'true':
+            check_env(request, environment_id)
             LOG.debug('Environments:Abandon  <Id: {0}>'.format(environment_id))
             envs.EnvironmentServices.remove(environment_id)
         else:

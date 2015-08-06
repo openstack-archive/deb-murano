@@ -32,6 +32,9 @@ MuranoGroup = [
     cfg.StrOpt('tenant',
                default='admin',
                help='keystone tenant'),
+    cfg.StrOpt('keyname',
+               default='',
+               help='name of keypair for debugging'),
     cfg.StrOpt('murano_url',
                default='http://127.0.0.1:8082/v1/',
                help="murano url"),
@@ -44,10 +47,21 @@ MuranoGroup = [
     cfg.StrOpt('linux_image',
                default='default_linux',
                help="image for linux services"),
+    cfg.StrOpt('docker_image',
+               default='ubuntu14.04-x64-docker',
+               help="image for docker applications"),
     cfg.StrOpt('windows_image',
                default='default_windows',
-               help="image for windows services")
+               help="image for windows services"),
+    cfg.StrOpt('hdp_image',
+               default="hdp-sandbox",
+               help="image for hdp-sandbox"),
+    cfg.StrOpt('kubernetes_image',
+               default="ubuntu14.04-x64-kubernetes",
+               help="image for kubernetes")
 ]
+
+CONF = cfg.CONF
 
 
 def register_config(config, config_group, config_opts):
@@ -62,6 +76,6 @@ def load_config():
     path = os.path.join(__location, "config.conf")
 
     if os.path.exists(path):
-        cfg.CONF([], project='muranointegration', default_config_files=[path])
+        CONF([], project='muranointegration', default_config_files=[path])
 
-    register_config(cfg.CONF, murano_group, MuranoGroup)
+    register_config(CONF, murano_group, MuranoGroup)

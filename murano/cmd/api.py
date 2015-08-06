@@ -33,29 +33,35 @@ root = os.path.join(os.path.abspath(__file__), os.pardir, os.pardir, os.pardir)
 if os.path.exists(os.path.join(root, 'murano', '__init__.py')):
     sys.path.insert(0, root)
 
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service import service
+
 from murano.api.v1 import request_statistics
+from murano.common import app_loader
 from murano.common import config
 from murano.common import policy
 from murano.common import server
 from murano.common import statservice as stats
 from murano.common import wsgi
-from murano.openstack.common import log
-from murano.openstack.common import service
+
+CONF = cfg.CONF
 
 
 def main():
     try:
         config.parse_args()
-        log.setup('murano')
         request_statistics.init_stats()
         policy.init()
 
-        launcher = service.ServiceLauncher()
+        logging.setup(CONF, 'murano')
+        launcher = service.ServiceLauncher(CONF)
 
-        app = config.load_paste_app('murano')
-        port, host = (config.CONF.bind_port, config.CONF.bind_host)
+        app = app_loader.load_paste_app('murano')
+        port, host = (CONF.bind_port, CONF.bind_host)
 
         launcher.launch_service(wsgi.Service(app, port, host))
+
         launcher.launch_service(server.get_rpc_service())
         launcher.launch_service(server.get_notification_service())
         launcher.launch_service(stats.StatsCollectingService())

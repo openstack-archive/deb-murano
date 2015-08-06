@@ -16,11 +16,10 @@
 import copy
 import itertools
 
+import oslo_service.sslutils
 
 import murano.common.config
 import murano.common.wsgi
-import murano.openstack.common.log
-import murano.openstack.common.sslutils
 
 
 def build_list(opt_list):
@@ -39,18 +38,15 @@ _opt_lists = [
     ('networking', murano.common.config.networking_opts),
     ('stats', murano.common.config.stats_opts),
     ('packages_opts', murano.common.config.packages_opts),
-    ('ssl', murano.openstack.common.sslutils.ssl_opts),
     (None, build_list([
         murano.common.config.metadata_dir,
         murano.common.config.bind_opts,
         murano.common.config.file_server,
-        murano.common.wsgi.socket_opts,
-        murano.openstack.common.log.common_cli_opts,
-        murano.openstack.common.log.generic_log_opts,
-        murano.openstack.common.log.log_opts,
-        murano.openstack.common.log.logging_cli_opts,
+        murano.common.wsgi.wsgi_opts,
     ])),
 ]
+
+_opt_lists.extend(oslo_service.sslutils.list_opts())
 
 
 def list_opts():
