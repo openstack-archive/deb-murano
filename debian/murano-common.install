@@ -1,2 +1,4 @@
 /usr/bin/murano-db-manage
 /usr/bin/murano-manage
+/usr/bin/murano-test-runner
+/usr/bin/murano-cfapi
