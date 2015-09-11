@@ -23,6 +23,8 @@ Classes:
   io.murano.File: File.yaml
 
 
+  io.murano.configuration.Linux: configuration/Linux.yaml
+
   io.murano.resources.Network: resources/Network.yaml
   io.murano.resources.Instance: resources/Instance.yaml
   io.murano.resources.LinuxInstance: resources/LinuxInstance.yaml
@@ -41,9 +43,12 @@ Classes:
   io.murano.system.HeatStack: system/HeatStack.yaml
   io.murano.system.Resources: system/Resources.yaml
   io.murano.system.InstanceNotifier: system/InstanceNotifier.yaml
+  io.murano.system.Logger: system/Logger.yaml
   io.murano.system.StatusReporter: system/StatusReporter.yaml
   io.murano.system.NetworkExplorer: system/NetworkExplorer.yaml
   io.murano.system.SecurityGroupManager: system/SecurityGroupManager.yaml
   io.murano.system.NeutronSecurityGroupManager: system/NeutronSecurityGroupManager.yaml
   io.murano.system.AwsSecurityGroupManager: system/AwsSecurityGroupManager.yaml
   io.murano.system.MistralClient: system/MistralClient.yaml
+
+  io.murano.test.TestFixture: test/TestFixture.yaml

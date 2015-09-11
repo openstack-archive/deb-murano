@@ -70,33 +70,15 @@ function create_murano_accounts() {
         return
     fi
 
-    SERVICE_TENANT=$(openstack project list | awk "/ $SERVICE_TENANT_NAME / { print \$2 }")
-    ADMIN_ROLE=$(openstack role list | awk "/ admin / { print \$2 }")
-
-    MURANO_USER=$(openstack user create \
-        $MURANO_ADMIN_USER \
-        --password "$SERVICE_PASSWORD" \
-        --project $SERVICE_TENANT \
-        --email murano@example.com \
-        | grep " id " | get_field 2)
-
-    openstack role add \
-        $ADMIN_ROLE \
-        --project $SERVICE_TENANT \
-        --user $MURANO_USER
+    create_service_user "murano"
 
     if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
-        MURANO_SERVICE=$(openstack service create \
-            murano \
-            --type=application_catalog \
-            --description="Application Catalog" \
-            | grep " id " | get_field 2)
-        openstack endpoint create \
-            $MURANO_SERVICE \
-            --region RegionOne \
-            --publicurl "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
-            --adminurl "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
-            --internalurl "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT"
+        get_or_create_service "murano" "application_catalog" "Application Catalog Service"
+        get_or_create_endpoint "application_catalog" \
+            "$REGION_NAME" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT"
     fi
 }
 
@@ -386,6 +368,7 @@ function init_murano_dashboard() {
     local horizon_manage_py="$HORIZON_DIR/manage.py"
 
     python "$horizon_manage_py" collectstatic --noinput
+    python "$horizon_manage_py" compress --force
     python "$horizon_manage_py" syncdb --noinput
 
     restart_apache_server

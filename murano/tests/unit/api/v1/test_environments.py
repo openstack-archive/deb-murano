@@ -97,7 +97,6 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         expected = {'tenant_id': self.tenant,
                     'id': 'environment_id',
                     'name': 'my_env',
-                    'networking': {},
                     'version': 0,
                     # TODO(sjmc7) - bug 1347298
                     'created': timeutils.isotime(fake_now)[:-1],
@@ -158,6 +157,23 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         result = req.get_response(self.api)
         self.assertEqual(400, result.status_code)
 
+    def test_no_environment_name_create(self):
+        """Check that no env name provided results in an HTTPBadResquest."""
+        self._set_policy_rules(
+            {'list_environments': '@',
+             'create_environment': '@',
+             'show_environment': '@'}
+        )
+        self.expect_policy_check('create_environment')
+
+        body = {'no_name': 'fake'}
+        req = self._post('/environments', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        self.assertIn('Please, specify a name of the environment to create',
+                      result_msg)
+
     def test_too_long_environment_name_create(self):
         """Check that an too long env name results in an HTTPBadResquest."""
         self._set_policy_rules(
@@ -173,6 +189,17 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         self.assertEqual(400, result.status_code)
         result_msg = result.text.replace('\n', '')
         self.assertIn('Environment name should be 255 characters maximum',
+                      result_msg)
+
+    def test_create_environment_with_empty_body(self):
+        """Check that empty request body results in an HTTPBadResquest."""
+        body = ''
+        req = self._post('/environments', body)
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        self.assertIn('The server could not comply with the request since it '
+                      'is either malformed or otherwise incorrect.',
                       result_msg)
 
     def test_missing_environment(self):
@@ -201,7 +228,6 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
             id='12345',
             name='my-env',
             version=0,
-            networking={},
             created=fake_now,
             updated=fake_now,
             tenant_id=self.tenant,
@@ -279,13 +305,21 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         self.assertTrue(('User is not authorized to access these'
                          ' tenant resources') in result.body)
 
+    def test_get_last_status_of_different_tenant(self):
+        """Test get last services status of env belongs to another tenant."""
+        self._create_fake_environment('env1', '111')
+        req = self._get('/environments/111/lastStatus', tenant='not_match')
+        result = req.get_response(self.api)
+        self.assertEqual(403, result.status_code)
+        self.assertTrue(('User is not authorized to access these'
+                         ' tenant resources') in result.body)
+
     def _create_fake_environment(self, env_name='my-env', env_id='123'):
         fake_now = timeutils.utcnow()
         expected = dict(
             id=env_id,
             name=env_name,
             version=0,
-            networking={},
             created=fake_now,
             updated=fake_now,
             tenant_id=self.tenant,

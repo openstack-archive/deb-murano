@@ -19,11 +19,10 @@ import eventlet
 import heatclient.exc as heat_exc
 from oslo_log import log as logging
 
-import murano.common.utils as utils
-import murano.dsl.helpers as helpers
-import murano.dsl.murano_class as murano_class
-import murano.dsl.murano_object as murano_object
-from murano.common.i18n import _LI, _LW
+from murano.common.i18n import _LW
+from murano.common import utils
+from murano.dsl import dsl
+from murano.dsl import helpers
 
 LOG = logging.getLogger(__name__)
 
@@ -34,18 +33,21 @@ class HeatStackError(Exception):
     pass
 
 
-@murano_class.classname('io.murano.system.HeatStack')
-class HeatStack(murano_object.MuranoObject):
-    def initialize(self, _context, name, description=None):
+@dsl.name('io.murano.system.HeatStack')
+class HeatStack(object):
+    def __init__(self, name, description=None):
         self._name = name
         self._template = None
         self._parameters = {}
+        self._files = {}
+        self._hot_environment = ''
         self._applied = True
         self._description = description
-        self._clients = helpers.get_environment(_context).clients
+        self._clients = helpers.get_environment().clients
+        self._last_stack_timestamps = (None, None)
 
-    def current(self, _context):
-        client = self._clients.get_heat_client(_context)
+    def current(self):
+        client = self._clients.get_heat_client()
         if self._template is not None:
             return self._template
         try:
@@ -54,7 +56,6 @@ class HeatStack(murano_object.MuranoObject):
                 stack_id='{0}/{1}'.format(
                     stack_info.stack_name,
                     stack_info.id))
-            # template = {}
             self._template = template
             self._parameters.update(
                 HeatStack._remove_system_params(stack_info.parameters))
@@ -66,32 +67,40 @@ class HeatStack(murano_object.MuranoObject):
             self._parameters.clear()
             return {}
 
-    def parameters(self, _context):
-        self.current(_context)
+    def parameters(self):
+        self.current()
         return self._parameters.copy()
 
-    def reload(self, _context):
+    def reload(self):
         self._template = None
         self._parameters.clear()
-        return self.current(_context)
+        return self.current()
 
-    def setTemplate(self, template):
+    def set_template(self, template):
         self._template = template
         self._parameters.clear()
         self._applied = False
 
-    def setParameters(self, parameters):
+    def set_parameters(self, parameters):
         self._parameters = parameters
         self._applied = False
 
-    def updateTemplate(self, _context, template):
+    def set_files(self, files):
+        self._files = files
+        self._applied = False
+
+    def set_hot_environment(self, hot_environment):
+        self._hot_environment = hot_environment
+        self._applied = False
+
+    def update_template(self, template):
         template_version = template.get('heat_template_version',
                                         HEAT_TEMPLATE_VERSION)
         if template_version != HEAT_TEMPLATE_VERSION:
             err_msg = ("Currently only heat_template_version %s "
                        "is supported." % HEAT_TEMPLATE_VERSION)
             raise HeatStackError(err_msg)
-        self.current(_context)
+        self.current()
         self._template = helpers.merge_dicts(self._template, template)
         self._applied = False
 
@@ -100,22 +109,22 @@ class HeatStack(murano_object.MuranoObject):
         return dict((k, v) for k, v in parameters.iteritems() if
                     not k.startswith('OS::'))
 
-    def _get_status(self, context):
+    def _get_status(self):
         status = [None]
 
         def status_func(state_value):
             status[0] = state_value
             return True
 
-        self._wait_state(context, status_func)
+        self._wait_state(status_func)
         return status[0]
 
-    def _wait_state(self, context, status_func):
+    def _wait_state(self, status_func, wait_progress=False):
         tries = 4
         delay = 1
         while tries > 0:
             while True:
-                client = self._clients.get_heat_client(context)
+                client = self._clients.get_heat_client()
                 try:
                     stack_info = client.stacks.get(
                         stack_id=self._name)
@@ -133,9 +142,16 @@ class HeatStack(murano_object.MuranoObject):
                     eventlet.sleep(delay)
                     break
 
-                if 'IN_PROGRESS' in status or status == '_':
+                last_stack_timestamps = self._last_stack_timestamps
+                self._last_stack_timestamps = (None, None) if not stack_info \
+                    else(stack_info.creation_time, stack_info.updated_time)
+
+                if 'IN_PROGRESS' in status or status == '_' or (
+                        wait_progress and last_stack_timestamps ==
+                        self._last_stack_timestamps):
                     eventlet.sleep(2)
                     continue
+
                 if not status_func(status):
                     reason = ': {0}'.format(
                         stack_info.stack_status_reason) if stack_info else ''
@@ -149,10 +165,10 @@ class HeatStack(murano_object.MuranoObject):
                     return {}
         return {}
 
-    def output(self, _context):
-        return self._wait_state(_context, lambda status: True)
+    def output(self):
+        return self._wait_state(lambda status: True)
 
-    def push(self, _context):
+    def push(self):
         if self._applied or self._template is None:
             return
 
@@ -163,50 +179,51 @@ class HeatStack(murano_object.MuranoObject):
             self._template['description'] = self._description
 
         template = copy.deepcopy(self._template)
-        LOG.info(_LI('Pushing: {0}').format(template))
+        LOG.debug('Pushing: {template}'.format(template=template))
 
-        current_status = self._get_status(_context)
+        current_status = self._get_status()
         resources = template.get('Resources') or template.get('resources')
         if current_status == 'NOT_FOUND':
             if resources is not None:
-                token_client = self._clients.get_heat_client(_context, False)
+                token_client = self._clients.get_heat_client(use_trusts=False)
                 token_client.stacks.create(
                     stack_name=self._name,
                     parameters=self._parameters,
                     template=template,
+                    files=self._files,
+                    environment=self._hot_environment,
                     disable_rollback=True)
 
-                self._wait_state(
-                    _context,
-                    lambda status: status == 'CREATE_COMPLETE')
+                self._wait_state(lambda status: status == 'CREATE_COMPLETE')
         else:
             if resources is not None:
-                trust_client = self._clients.get_heat_client(_context)
+                trust_client = self._clients.get_heat_client()
 
                 trust_client.stacks.update(
                     stack_id=self._name,
                     parameters=self._parameters,
+                    files=self._files,
+                    environment=self._hot_environment,
                     template=template,
                     disable_rollback=True)
                 self._wait_state(
-                    _context,
-                    lambda status: status == 'UPDATE_COMPLETE')
+                    lambda status: status == 'UPDATE_COMPLETE', True)
             else:
-                self.delete(_context)
+                self.delete()
 
         self._applied = not utils.is_different(self._template, template)
 
-    def delete(self, _context):
-        client = self._clients.get_heat_client(_context)
+    def delete(self):
+        client = self._clients.get_heat_client()
         try:
-            if not self.current(_context):
+            if not self.current():
                 return
             client.stacks.delete(stack_id=self._name)
             self._wait_state(
-                _context,
                 lambda status: status in ('DELETE_COMPLETE', 'NOT_FOUND'))
         except heat_exc.NotFound:
-            LOG.warn(_LW('Stack {0} already deleted?').format(self._name))
+            LOG.warning(_LW('Stack {stack_name} already deleted?')
+                        .format(stack_name=self._name))
 
         self._template = {}
         self._applied = True

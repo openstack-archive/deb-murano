@@ -1,15 +1,20 @@
 [loggers]
-keys: root,murano
+keys: root,murano,applications
 
 [handlers]
-keys: watchedfile, stderr, stdout, null
+keys: watchedfile, applications, stderr, stdout, null
 
 [formatters]
 keys: context, default
 
 [logger_root]
 level = WARNING
-handlers = null
+handlers = watchedfile
+
+[logger_applications]
+level = DEBUG
+handlers = applications
+qualname = applications
 
 [logger_murano]
 level = INFO
@@ -44,6 +49,11 @@ level = WARNING
 handlers = stderr
 qualname = oslo.messaginga
 
+[handler_null]
+class = oslo_log.handlers.NullHandler
+formatter = default
+args = ()
+
 [handler_stderr]
 class = StreamHandler
 args = (sys.stderr,)
@@ -59,5 +69,15 @@ class: handlers.WatchedFileHandler
 args: ('murano.log',)
 formatter: context
 
+[handler_applications]
+class: handlers.WatchedFileHandler
+args: ('applications.log',)
+formatter: context
+
 [formatter_default]
 format = %(message)s
+[formatter_context]
+class: oslo_log.formatters.ContextFormatter
+args: (datefmt=datefmt)
+format: %(asctime)s.%(msecs)03d %(process)d %(levelname)s %(name)s [%(request_id)s %(user)s %(tenant)s] %(instance)s%(message)s
+datefmt: %Y-%m-%d %H:%M:%S

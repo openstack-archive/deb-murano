@@ -14,22 +14,22 @@
 
 import contextlib
 import json
-import logging
 import os
 import random
 import socket
 import telnetlib
 import time
-import zipfile
 
 from heatclient import client as heatclient
 from keystoneclient import exceptions as ks_exceptions
 from keystoneclient.v2_0 import client as ksclient
 from muranoclient import client as mclient
 import muranoclient.common.exceptions as exceptions
+from oslo_log import log as logging
 import yaml
 
 from murano.services import states
+import murano.tests.functional.common.zip_utils_mixin as zip_utils
 import murano.tests.functional.engine.config as cfg
 
 CONF = cfg.cfg.CONF
@@ -69,21 +69,7 @@ def memoize(f):
     return decorated_function
 
 
-class ZipUtilsMixin(object):
-    @staticmethod
-    def zip_dir(parent_dir, dir):
-        abs_path = os.path.join(parent_dir, dir)
-        path_len = len(abs_path) + 1
-        zip_file = abs_path + ".zip"
-        with zipfile.ZipFile(zip_file, "w") as zf:
-            for dir_name, _, files in os.walk(abs_path):
-                for filename in files:
-                    fn = os.path.join(dir_name, filename)
-                    zf.write(fn, fn[path_len:])
-        return zip_file
-
-
-class DeployTestMixin(ZipUtilsMixin):
+class DeployTestMixin(zip_utils.ZipUtilsMixin):
     cfg.load_config()
 
 # -----------------------------Clients methods---------------------------------
@@ -147,8 +133,8 @@ class DeployTestMixin(ZipUtilsMixin):
         status = environment.manager.get(environment.id).status
         while states.SessionState.DEPLOYING == status:
             if time.time() - start_time > timeout:
-                err_msg = ('Deployment not finished in {0} seconds'
-                           .format(timeout))
+                err_msg = ('Deployment not finished in {amount} seconds'
+                           .format(amount=timeout))
                 LOG.error(err_msg)
                 raise RuntimeError(err_msg)
             time.sleep(5)
@@ -194,11 +180,11 @@ class DeployTestMixin(ZipUtilsMixin):
         deployment = cls.get_last_deployment(environment)
         try:
             details = deployment.result['result']['details']
-            LOG.warning('Details:\n {0}'.format(details))
+            LOG.warning('Details:\n {details}'.format(details=details))
         except Exception as e:
             LOG.error(e)
         report = cls.get_deployment_report(environment, deployment)
-        LOG.debug('Report:\n {0}\n'.format(report))
+        LOG.debug('Report:\n {report}\n'.format(report=report))
 
 # -----------------------------Service methods---------------------------------
 
@@ -213,7 +199,7 @@ class DeployTestMixin(ZipUtilsMixin):
                         If False - returns a specific class <Service>
         """
 
-        LOG.debug('Added service:\n {0}'.format(data))
+        LOG.debug('Added service:\n {data}'.format(data=data))
         service = cls.murano_client().services.post(environment.id,
                                                     path='/', data=data,
                                                     session_id=session.id)
@@ -305,7 +291,7 @@ class DeployTestMixin(ZipUtilsMixin):
         tn.write('GET / HTTP/1.0\n\n')
         try:
             buf = tn.read_all()
-            LOG.debug('Data:\n {0}'.format(buf))
+            LOG.debug('Data:\n {data}'.format(data=buf))
             if len(buf) != 0:
                 tn.sock.sendall(telnetlib.IAC + telnetlib.NOP)
                 return
@@ -313,7 +299,7 @@ class DeployTestMixin(ZipUtilsMixin):
                 raise RuntimeError('Resource at {0}:{1} not exist'.
                                    format(ip, port))
         except socket.error as e:
-            LOG.debug('Socket Error: {0}'.format(e))
+            LOG.error('Socket Error: {error}'.format(error=e))
 
     @classmethod
     def get_ip_by_appname(cls, environment, appname):
@@ -396,20 +382,34 @@ class DeployTestMixin(ZipUtilsMixin):
         try:
             for env in cls._environments:
                 with ignored(Exception):
+                    LOG.debug('Processing cleanup for environment {0} ({1})'.
+                              format(env.name, env.id))
                     cls.environment_delete(env.id)
+                    cls.purge_stacks(env.id)
+                    time.sleep(5)
         finally:
             cls._environments = []
+
+    @classmethod
+    def purge_stacks(cls, environment_id):
+        stack = cls._get_stack(environment_id)
+        if not stack:
+            return
+        else:
+            cls.heat_client().stacks.delete(stack.id)
 
 # -----------------------Methods for environment CRUD--------------------------
 
     @classmethod
-    def create_environment(cls):
+    def create_environment(cls, name=None):
         """Creates Murano environment with random name.
 
 
+        :param name: Environment name
         :return: Murano environment
         """
-        name = cls.rand_name('MuranoTe')
+        if not name:
+            name = cls.rand_name('MuranoTe')
         environment = cls.murano_client().environments.create({'name': name})
         cls._environments.append(environment)
         return environment
@@ -431,18 +431,27 @@ class DeployTestMixin(ZipUtilsMixin):
         :param timeout: Timeout to environment get deleted
         :return: :raise RuntimeError:
         """
-        cls.murano_client().environments.delete(environment_id)
+        try:
+            cls.murano_client().environments.delete(environment_id)
 
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                cls.murano_client().environments.get(environment_id)
-            except exceptions.HTTPNotFound:
-                return
-        err_msg = ('Environment {0} was not deleted in {1} seconds'.
-                   format(environment_id, timeout))
-        LOG.error(err_msg)
-        raise RuntimeError(err_msg)
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    cls.murano_client().environments.get(environment_id)
+                except exceptions.HTTPNotFound:
+                    LOG.debug('Environment with id {0} successfully deleted.'.
+                              format(environment_id))
+                    return
+            err_msg = ('Environment {0} was not deleted in {1} seconds'.
+                       format(environment_id, timeout))
+            LOG.error(err_msg)
+            raise RuntimeError(err_msg)
+        except Exception as exc:
+            LOG.debug('Environment with id {0} going to be abandoned.'.
+                      format(environment_id))
+            LOG.exception(exc)
+            cls.murano_client().environments.delete(environment_id,
+                                                    abandon=True)
 
 # -----------------------Methods for session actions---------------------------
 

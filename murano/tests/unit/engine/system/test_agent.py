@@ -18,9 +18,10 @@ import mock
 import yaml as yamllib
 
 from murano.dsl import murano_class
+from murano.dsl import murano_object
 from murano.dsl import object_store
-import murano.engine.system.agent as agent
-import murano.engine.system.resource_manager as resource
+from murano.engine.system import agent
+from murano.engine.system import resource_manager
 from murano.tests.unit import base
 
 
@@ -34,11 +35,16 @@ class TestExecutionPlan(base.MuranoTestCase):
 
         self.mock_murano_class = mock.Mock(spec=murano_class.MuranoClass)
         self.mock_murano_class.name = 'io.murano.system.Agent'
-        self.mock_murano_class.parents = []
+        self.mock_murano_class.declared_parents = []
         self.mock_object_store = mock.Mock(spec=object_store.ObjectStore)
-        self.agent = agent.Agent(self.mock_murano_class, None,
-                                 self.mock_object_store, None)
-        self.resources = mock.Mock(spec=resource.ResourceManager)
+
+        object_interface = mock.Mock(spec=murano_object.MuranoObject)
+        object_interface.id = '1234'
+
+        agent.Agent._get_environment = \
+            lambda this, iface, host: object_interface
+        self.agent = agent.Agent(None, object_interface)
+        self.resources = mock.Mock(spec=resource_manager.ResourceManager)
         self.resources.string.return_value = 'text'
         self.uuids = ['ID1', 'ID2', 'ID3', 'ID4']
         self.mock_uuid = self._stub_uuid(self.uuids)
@@ -55,35 +61,42 @@ class TestExecutionPlan(base.MuranoTestCase):
         template = yamllib.load(
             self._read('application.template'),
             Loader=self.yaml_loader)
-        template = self.agent.buildExecutionPlan(template, self.resources)
+        template = self.agent.build_execution_plan(template, self.resources)
         self.assertEqual(template, self._get_application())
 
     def test_execution_plan_v2_chef_type(self):
         template = yamllib.load(
             self._read('chef.template'),
             Loader=self.yaml_loader)
-        template = self.agent.buildExecutionPlan(template, self.resources)
+        template = self.agent.build_execution_plan(template, self.resources)
         self.assertEqual(template, self._get_chef())
 
     def test_execution_plan_v2_telnet_application(self):
         template = yamllib.load(
             self._read('DeployTelnet.template'),
             Loader=self.yaml_loader)
-        template = self.agent.buildExecutionPlan(template, self.resources)
+        template = self.agent.build_execution_plan(template, self.resources)
         self.assertEqual(template, self._get_telnet_application())
 
     def test_execution_plan_v2_tomcat_application(self):
         template = yamllib.load(
             self._read('DeployTomcat.template'),
             Loader=self.yaml_loader)
-        template = self.agent.buildExecutionPlan(template, self.resources)
+        template = self.agent.build_execution_plan(template, self.resources)
 
     def test_execution_plan_v2_app_without_files(self):
         template = yamllib.load(
             self._read('application_without_files.template'),
             Loader=self.yaml_loader)
-        template = self.agent.buildExecutionPlan(template, self.resources)
+        template = self.agent.build_execution_plan(template, self.resources)
         self.assertEqual(template, self._get_app_without_files())
+
+    def test_execution_plan_v2_app_with_file_in_template(self):
+        template = yamllib.load(
+            self._read('template_with_files.template'),
+            Loader=self.yaml_loader)
+        template = self.agent.build_execution_plan(template, self.resources)
+        self.assertEqual(template, self._get_app_with_files_in_template())
 
     def _get_application(self):
         return {
@@ -118,6 +131,45 @@ class TestExecutionPlan(base.MuranoTestCase):
                     'Files': [
                         self.uuids[2],
                         self.uuids[3]
+                    ],
+                    'Options': {
+                        'captureStderr': True,
+                        'captureStdout': True
+                    },
+                    'Type': 'Application',
+                    'Version': '1.0.0'
+                }
+            },
+            'Version': '1.0.0'
+        }
+
+    def _get_app_with_files_in_template(self):
+        return {
+            'Action': 'Execute',
+            'Body': 'return deploy(args.appName).stdout\n',
+            'Files': {
+                self.uuids[1]: {
+                    'Body': 'text',
+                    'BodyType': 'Text',
+                    'Name': 'deployTomcat.sh'
+                },
+                'updateScript': {
+                    'Body': 'text',
+                    'BodyType': 'Text',
+                    'Name': 'updateScript'
+                },
+            },
+            'FormatVersion': '2.0.0',
+            'ID': self.uuids[0],
+            'Name': 'Deploy Tomcat',
+            'Parameters': {
+                'appName': '$appName'
+            },
+            'Scripts': {
+                'deploy': {
+                    'EntryPoint': self.uuids[1],
+                    'Files': [
+                        'updateScript'
                     ],
                     'Options': {
                         'captureStderr': True,

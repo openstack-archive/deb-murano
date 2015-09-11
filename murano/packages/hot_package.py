@@ -19,12 +19,17 @@ import types
 
 import yaml
 
-from murano.dsl import yaql_expression
-import murano.packages.application_package
 from murano.packages import exceptions
+from murano.packages import package_base
+
+RESOURCES_DIR_NAME = 'Resources/'
+HOT_FILES_DIR_NAME = 'HotFiles/'
+HOT_ENV_DIR_NAME = 'HotEnvironments/'
 
 
-YAQL = yaql_expression.YaqlExpression
+class YAQL(object):
+    def __init__(self, expr):
+        self.expr = expr
 
 
 class Dumper(yaml.Dumper):
@@ -32,14 +37,18 @@ class Dumper(yaml.Dumper):
 
 
 def yaql_representer(dumper, data):
-    return dumper.represent_scalar(u'!yaql', str(data))
+    return dumper.represent_scalar(u'!yaql', data.expr)
+
 
 Dumper.add_representer(YAQL, yaql_representer)
 
 
-class HotPackage(murano.packages.application_package.ApplicationPackage):
-    def __init__(self, source_directory, manifest, loader):
-        super(HotPackage, self).__init__(source_directory, manifest, loader)
+class HotPackage(package_base.PackageBase):
+    def __init__(self, source_directory, manifest,
+                 package_format, runtime_version):
+        super(HotPackage, self).__init__(
+            source_directory, manifest, package_format, runtime_version)
+
         self._translated_class = None
         self._source_directory = source_directory
         self._translated_ui = None
@@ -49,16 +58,14 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         return self.full_name,
 
     @property
+    def requirements(self):
+        return {}
+
+    @property
     def ui(self):
         if not self._translated_ui:
             self._translated_ui = self._translate_ui()
         return self._translated_ui
-
-    @property
-    def raw_ui(self):
-        ui_obj = self.ui
-        result = yaml.dump(ui_obj, Dumper=Dumper, default_style='"')
-        return result
 
     def get_class(self, name):
         if name != self.full_name:
@@ -66,13 +73,7 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                 name, 'Class not defined in this package')
         if not self._translated_class:
             self._translate_class()
-        return self._translated_class
-
-    def validate(self):
-        self.get_class(self.full_name)
-        if not self._translated_ui:
-            self._translated_ui = self._translate_ui()
-        super(HotPackage, self).validate()
+        return self._translated_class, '<generated code>'
 
     def _translate_class(self):
         template_file = os.path.join(self._source_directory, 'template.yaml')
@@ -90,29 +91,63 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             'Extends': 'io.murano.Application'
         }
 
-        parameters = HotPackage._translate_parameters(hot)
+        hot_envs_path = os.path.join(self._source_directory,
+                                     RESOURCES_DIR_NAME,
+                                     HOT_ENV_DIR_NAME)
+
+        # if using hot environments, doing parameter validation with contracts
+        # will overwrite the parameters in the hot environment.
+        # don't validate parameters if hot environments exist.
+        validate_hot_parameters = (not os.path.isdir(hot_envs_path) or
+                                   not os.listdir(hot_envs_path))
+
+        parameters = HotPackage._build_properties(hot, validate_hot_parameters)
         parameters.update(HotPackage._translate_outputs(hot))
         translated['Properties'] = parameters
 
-        translated.update(HotPackage._generate_workflow(hot))
-        self._translated_class = translated
+        files = HotPackage._translate_files(self._source_directory)
+        translated.update(HotPackage._generate_workflow(hot, files))
+        self._translated_class = yaml.dump(translated, Dumper=Dumper)
 
     @staticmethod
-    def _translate_parameters(hot):
+    def _build_properties(hot, validate_hot_parameters):
         result = {
             'generatedHeatStackName': {
                 'Contract': YAQL('$.string()'),
                 'Usage': 'Out'
+            },
+            'hotEnvironment': {
+                'Contract': YAQL('$.string()'),
+                'Usage': 'In'
+            },
+            'name': {
+                'Contract': YAQL('$.string().notNull()'),
+                'Usage': 'In',
+
             }
         }
-        for key, value in (hot.get('parameters') or {}).items():
-            result[key] = HotPackage._translate_parameter(value)
-        result['name'] = {'Usage': 'In',
-                          'Contract': YAQL('$.string().notNull()')}
+
+        if validate_hot_parameters:
+            params_dict = {}
+            for key, value in (hot.get('parameters') or {}).items():
+                param_contract = HotPackage._translate_param_to_contract(value)
+                params_dict[key] = param_contract
+            result['templateParameters'] = {
+                'Contract': params_dict,
+                'Default': {},
+                'Usage': 'In'
+            }
+        else:
+            result['templateParameters'] = {
+                'Contract': {},
+                'Default': {},
+                'Usage': 'In'
+            }
+
         return result
 
     @staticmethod
-    def _translate_parameter(value):
+    def _translate_param_to_contract(value):
         contract = '$'
 
         parameter_type = value['type']
@@ -131,22 +166,36 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             if translated:
                 contract += translated
 
-        result = {
-            'Contract': YAQL(contract),
-            "Usage": "In"
-        }
-        if 'default' in value:
-            result['Default'] = value['default']
+        result = YAQL(contract)
         return result
 
     @staticmethod
     def _translate_outputs(hot):
         result = {}
-        for key, value in (hot.get('outputs') or {}).items():
+        for key in (hot.get('outputs') or {}).keys():
             result[key] = {
                 "Contract": YAQL("$.string()"),
                 "Usage": "Out"
             }
+        return result
+
+    @staticmethod
+    def _translate_files(source_directory):
+        hot_files_path = os.path.join(source_directory,
+                                      RESOURCES_DIR_NAME,
+                                      HOT_FILES_DIR_NAME)
+
+        return HotPackage._build_hot_resources_dict(hot_files_path)
+
+    @staticmethod
+    def _build_hot_resources_dict(basedir):
+        result = []
+        if os.path.isdir(basedir):
+            for root, _, files in os.walk(os.path.abspath(basedir)):
+                for f in files:
+                    full_path = os.path.join(root, f)
+                    relative_path = os.path.relpath(full_path, basedir)
+                    result.append(relative_path)
         return result
 
     @staticmethod
@@ -200,13 +249,17 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
         return str(value)
 
     @staticmethod
-    def _generate_workflow(hot):
-        template_parameters = {}
-        for key, value in (hot.get('parameters') or {}).items():
-            template_parameters[key] = YAQL("$." + key)
+    def _generate_workflow(hot, files):
+        hot_files_map = {}
+        for f in files:
+            file_path = "$resources.string('{0}{1}')".format(
+                HOT_FILES_DIR_NAME, f)
+            hot_files_map[f] = YAQL(file_path)
+
+        hot_env = YAQL("$.hotEnvironment")
 
         copy_outputs = []
-        for key, value in (hot.get('outputs') or {}).items():
+        for key in (hot.get('outputs') or {}).keys():
             copy_outputs.append({YAQL('$.' + key): YAQL('$outputs.' + key)})
 
         deploy = [
@@ -219,7 +272,8 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             {
                 'If': YAQL('$.getAttr(generatedHeatStackName) = null'),
                 'Then': [
-                    YAQL('$.setAttr(generatedHeatStackName, randomName())')
+                    YAQL("$.setAttr(generatedHeatStackName, "
+                         "'{0}_{1}'.format(randomName(), id($environment)))")
                 ]
             },
             {YAQL('$stack'): YAQL(
@@ -230,10 +284,24 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                  "'Application deployment has started')"),
 
             {YAQL('$resources'): YAQL("new('io.murano.system.Resources')")},
+
             {YAQL('$template'): YAQL("$resources.yaml(type($this))")},
-            {YAQL('$parameters'): template_parameters},
             YAQL('$stack.setTemplate($template)'),
+            {YAQL('$parameters'): YAQL("$.templateParameters")},
             YAQL('$stack.setParameters($parameters)'),
+            {YAQL('$files'): hot_files_map},
+            YAQL('$stack.setFiles($files)'),
+            {YAQL('$hotEnv'): hot_env},
+            {
+                'If': YAQL("bool($hotEnv)"),
+                'Then': [
+                    {YAQL('$envRelPath'): YAQL("'{0}' + $hotEnv".format(
+                        HOT_ENV_DIR_NAME))},
+                    {YAQL('$hotEnvContent'): YAQL("$resources.string("
+                                                  "$envRelPath)")},
+                    YAQL('$stack.setHotEnvironment($hotEnvContent)')
+                ]
+            },
 
             YAQL("$reporter.report($this, 'Stack creation has started')"),
             {
@@ -263,6 +331,7 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             {YAQL('$stack'): YAQL(
                 "new('io.murano.system.HeatStack', "
                 "name => $.getAttr(generatedHeatStackName))")},
+
             YAQL('$stack.delete()')
         ]
 
@@ -296,8 +365,8 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                 'label': 'Application Name',
                 'required': True,
                 'description':
-                        'Enter a desired name for the application.'
-                        ' Just A-Z, a-z, 0-9, and dash are allowed'
+                    'Enter a desired name for the application.'
+                    ' Just A-Z, a-z, 0-9, and dash are allowed'
             }
         ]
         used_parameters = set()
@@ -340,7 +409,7 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             translated['type'] = 'boolean'
         else:
             # string, json, and comma_delimited_list parameters are all
-            # displayed as strings in UI. Any unsuported parameter would also
+            # displayed as strings in UI. Any unsupported parameter would also
             # be displayed as strings.
             translated['type'] = 'string'
 
@@ -425,8 +494,12 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
             }
         }
         for i, record in enumerate(groups):
+            if i == 0:
+                section = app
+            else:
+                section = app.setdefault('templateParameters', {})
             for property_name in record[1]:
-                app[property_name] = YAQL(
+                section[property_name] = YAQL(
                     '$.group{0}.{1}'.format(i, property_name))
         app['name'] = YAQL('$.group0.name')
 
@@ -452,4 +525,4 @@ class HotPackage(murano.packages.application_package.ApplicationPackage):
                 groups, self.full_name),
             'Forms': forms
         }
-        return translated
+        return yaml.dump(translated, Dumper=Dumper)

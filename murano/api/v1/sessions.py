@@ -24,6 +24,7 @@ from murano.db.services import sessions
 from murano.db import session as db_session
 from murano.services import states
 from murano.utils import check_env
+from murano.utils import check_session
 
 LOG = logging.getLogger(__name__)
 API_NAME = 'Sessions'
@@ -31,23 +32,10 @@ API_NAME = 'Sessions'
 
 class Controller(object):
 
-    def _check_session(self, request, environment_id, session, session_id):
-        if session is None:
-            msg = _('Session <SessionId {0}> is not found').format(session_id)
-            LOG.error(msg)
-            raise exc.HTTPNotFound(explanation=msg)
-
-        if session.environment_id != environment_id:
-            msg = _('Session <SessionId {0}> is not tied with Environment '
-                    '<EnvId {1}>').format(session_id, environment_id)
-            LOG.error(msg)
-            raise exc.HTTPNotFound(explanation=msg)
-
-        check_env(request, environment_id)
-
     @request_statistics.stats_count(API_NAME, 'Create')
     def configure(self, request, environment_id):
-        LOG.debug('Session:Configure <EnvId: {0}>'.format(environment_id))
+        LOG.debug('Session:Configure <EnvId: {env_id}>'
+                  .format(env_id=environment_id))
 
         check_env(request, environment_id)
 
@@ -55,8 +43,9 @@ class Controller(object):
         env_status = envs.EnvironmentServices.get_status(environment_id)
         if env_status in (states.EnvironmentStatus.DEPLOYING,
                           states.EnvironmentStatus.DELETING):
-            msg = _('Could not open session for environment <EnvId: {0}>,'
-                    'environment has deploying status.').format(environment_id)
+            msg = _('Could not open session for environment <EnvId: '
+                    '{env_id}>, environment has deploying status.').format(
+                env_id=environment_id)
             LOG.error(msg)
             raise exc.HTTPForbidden(explanation=msg)
 
@@ -67,22 +56,26 @@ class Controller(object):
 
     @request_statistics.stats_count(API_NAME, 'Index')
     def show(self, request, environment_id, session_id):
-        LOG.debug('Session:Show <SessionId: {0}>'.format(session_id))
+        LOG.debug('Session:Show <SessionId: {id}>'.format(id=session_id))
 
         unit = db_session.get_session()
         session = unit.query(models.Session).get(session_id)
 
-        self._check_session(request, environment_id, session, session_id)
+        check_session(request, environment_id, session, session_id)
 
         user_id = request.context.user
-        msg = _('User <UserId {0}> is not authorized to access session'
-                '<SessionId {1}>.').format(user_id, session_id)
+
         if session.user_id != user_id:
+            msg = _('User <UserId {usr_id}> is not authorized to access'
+                    'session <SessionId {s_id}>.').format(usr_id=user_id,
+                                                          s_id=session_id)
             LOG.error(msg)
             raise exc.HTTPUnauthorized(explanation=msg)
 
         if not sessions.SessionServices.validate(session):
-            msg = _('Session <SessionId {0}> is invalid').format(session_id)
+            msg = _('Session <SessionId {0}> is invalid: environment has been'
+                    ' updated or updating right now with other session'
+                    ).format(session_id)
             LOG.error(msg)
             raise exc.HTTPForbidden(explanation=msg)
 
@@ -90,23 +83,24 @@ class Controller(object):
 
     @request_statistics.stats_count(API_NAME, 'Delete')
     def delete(self, request, environment_id, session_id):
-        LOG.debug('Session:Delete <SessionId: {0}>'.format(session_id))
+        LOG.debug('Session:Delete <SessionId: {s_id}>'.format(s_id=session_id))
 
         unit = db_session.get_session()
         session = unit.query(models.Session).get(session_id)
 
-        self._check_session(request, environment_id, session, session_id)
+        check_session(request, environment_id, session, session_id)
 
         user_id = request.context.user
         if session.user_id != user_id:
-            msg = _('User <UserId {0}> is not authorized to access session'
-                    '<SessionId {1}>.').format(user_id, session_id)
+            msg = _('User <UserId {usr_id}> is not authorized to access '
+                    'session <SessionId {s_id}>.').format(usr_id=user_id,
+                                                          s_id=session_id)
             LOG.error(msg)
             raise exc.HTTPUnauthorized(explanation=msg)
 
         if session.state == states.SessionState.DEPLOYING:
-            msg = _('Session <SessionId: {0}> is in deploying state and '
-                    'could not be deleted').format(session_id)
+            msg = _('Session <SessionId: {s_id}> is in deploying state '
+                    'and could not be deleted').format(s_id=session_id)
             LOG.error(msg)
             raise exc.HTTPForbidden(explanation=msg)
 
@@ -117,21 +111,23 @@ class Controller(object):
 
     @request_statistics.stats_count(API_NAME, 'Deploy')
     def deploy(self, request, environment_id, session_id):
-        LOG.debug('Session:Deploy <SessionId: {0}>'.format(session_id))
+        LOG.debug('Session:Deploy <SessionId: {s_id}>'.format(s_id=session_id))
 
         unit = db_session.get_session()
         session = unit.query(models.Session).get(session_id)
 
-        self._check_session(request, environment_id, session, session_id)
+        check_session(request, environment_id, session, session_id)
 
         if not sessions.SessionServices.validate(session):
-            msg = _('Session <SessionId {0}> is invalid').format(session_id)
+            msg = _('Session <SessionId {0}> is invalid: environment has been '
+                    'updated or updating right now with other session'
+                    ).format(session_id)
             LOG.error(msg)
             raise exc.HTTPForbidden(explanation=msg)
 
         if session.state != states.SessionState.OPENED:
-            msg = _('Session <SessionId {0}> is already deployed or '
-                    'deployment is in progress').format(session_id)
+            msg = _('Session <SessionId {s_id}> is already deployed or '
+                    'deployment is in progress').format(s_id=session_id)
             LOG.error(msg)
             raise exc.HTTPForbidden(explanation=msg)
 

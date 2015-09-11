@@ -16,7 +16,7 @@
 from oslo_log import log as logging
 
 from murano.common.i18n import _LE
-
+from murano.engine import client_manager
 
 LOG = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class Environment(object):
         self.tenant_id = None
         self.trust_id = None
         self.system_attributes = {}
-        self.clients = None
+        self.clients = client_manager.ClientManager(self)
         self._set_up_list = []
         self._tear_down_list = []
 
@@ -43,7 +43,7 @@ class Environment(object):
                 delegate()
             except Exception:
                 LOG.exception(_LE('Unhandled exception on invocation of '
-                                  'pre-execution hook'))
+                              'pre-execution hook'))
         self._set_up_list = []
 
     def finish(self):
@@ -52,5 +52,5 @@ class Environment(object):
                 delegate()
             except Exception:
                 LOG.exception(_LE('Unhandled exception on invocation of '
-                                  'post-execution hook'))
+                              'post-execution hook'))
         self._tear_down_list = []

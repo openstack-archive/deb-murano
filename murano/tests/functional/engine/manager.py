@@ -12,11 +12,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import logging
+import os
 import socket
 import time
 import uuid
 
+from oslo_log import log as logging
 import requests
 import testresources
 import testtools
@@ -71,7 +72,8 @@ class MuranoTestsCore(testtools.TestCase, testtools.testcase.WithAttributes,
                 self.fail('Environment has incorrect status {0}'.
                           format(status))
             time.sleep(5)
-        LOG.debug('Environment {0} is ready'.format(environment.name))
+        LOG.debug('Environment {env_name} is ready'.format(
+            env_name=environment.name))
         return environment.manager.get(environment.id)
 
     def status_check(self, environment, configurations, kubernetes=False):
@@ -87,11 +89,13 @@ class MuranoTestsCore(testtools.TestCase, testtools.testcase.WithAttributes,
         for configuration in configurations:
             if kubernetes:
                 service_name = configuration[0]
-                LOG.debug('Service: {0}'.format(service_name))
+                LOG.debug('Service: {service_name}'.format(
+                    service_name=service_name))
                 inst_name = configuration[1]
-                LOG.debug('Instance: {0}'.format(inst_name))
+                LOG.debug('Instance: {instance_name}'.format(
+                    instance_name=inst_name))
                 ports = configuration[2:]
-                LOG.debug('Acquired ports: {0}'.format(ports))
+                LOG.debug('Acquired ports: {ports}'.format(ports=ports))
                 ip = self.get_k8s_ip_by_instance_name(environment, inst_name,
                                                       service_name)
                 if ip and ports:
@@ -152,7 +156,7 @@ class MuranoTestsCore(testtools.TestCase, testtools.testcase.WithAttributes,
         start_time = time.time()
         while time.time() - start_time < 600:
             try:
-                LOG.debug('Checking: {0}:{1}'.format(ip, port))
+                LOG.debug('Checking: {ip}:{port}'.format(ip=ip, port=port))
                 self.verify_connection(ip, port)
                 return
             except RuntimeError as e:
@@ -201,3 +205,18 @@ class MuranoTestsCore(testtools.TestCase, testtools.testcase.WithAttributes,
                 "id": str(uuid.uuid4())
             }
         }
+
+    @classmethod
+    def upload_app(cls, app_dir, name, tags):
+        """Zip and upload application to Murano
+
+        :param app_dir: Unzipped dir with an application
+        :param name: Application name
+        :param tags: Application tags
+        :return: Uploaded package
+        """
+        zip_file_path = cls.zip_dir(os.path.dirname(__file__), app_dir)
+        cls.init_list("_package_files")
+        cls._package_files.append(zip_file_path)
+        return cls.upload_package(
+            name, tags, zip_file_path)

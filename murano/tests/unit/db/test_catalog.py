@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 import uuid
 
 from oslo_db import exception as db_exception
@@ -64,7 +63,7 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
 
     def test_order_by(self):
         pkgs = []
-        for i in range(10):
+        for dummy in range(10):
             package = api.package_upload(self._stub_package(
                 name=str(uuid.uuid4()),
                 fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
@@ -86,12 +85,12 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
 
     def test_order_by_compound(self):
         pkgs_a, pkgs_z = [], []
-        for i in range(5):
+        for _ in range(5):
             package = api.package_upload(self._stub_package(
                 name='z',
                 fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
             pkgs_z.append(package)
-        for i in range(5):
+        for _ in range(5):
             package = api.package_upload(self._stub_package(
                 name='a',
                 fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
@@ -113,7 +112,7 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
         checking that package order is correct.
         """
         pkgs = []
-        for i in range(10):
+        for dummy in range(10):
             package = api.package_upload(self._stub_package(
                 name=str(uuid.uuid4()),
                 fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
@@ -154,7 +153,7 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
         """
 
         pkgs = []
-        for i in range(10):
+        for dummy in range(10):
             package = api.package_upload(self._stub_package(
                 name=str(uuid.uuid4()),
                 fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
@@ -181,16 +180,16 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
         res = api.package_search({'marker': marker}, self.context, limit=4)
         self.assertEqual(len(res), 0)
 
-    @unittest.expectedFailure
     def test_pagination_loops_through_names(self):
-        """Creates 10 packages with the same name and iterates through them,
+        """Creates 10 packages with the same display name and iterates through them,
         checking that package are not skipped.
         """
 
-        # TODO(kzaitsev): fix https://bugs.launchpad.net/murano/+bug/1448782
-        for i in range(10):
-            api.package_upload(self._stub_package(
-                fully_qualified_name=str(uuid.uuid4())), self.tenant_id)
+        for dummy in range(10):
+            api.package_upload(
+                self._stub_package(name='test',
+                                   fully_qualified_name=str(uuid.uuid4())),
+                self.tenant_id)
         res = api.package_search({}, self.context, limit=4)
         self.assertEqual(len(res), 4)
         marker = res[-1].id
@@ -497,3 +496,27 @@ class CatalogDBTestCase(base.MuranoWithDBTestCase):
         api.package_update(id1, [patch], self.context)
         self.assertRaises(exc.HTTPConflict, api.package_update,
                           id2, [patch], self.context_2)
+
+    def test_category_paginate(self):
+        """Paginate through a list of categories using limit and marker"""
+
+        category_names = ['cat1', 'cat2', 'cat3', 'cat4', 'cat5']
+        categories = []
+        for name in category_names:
+            categories.append(api.category_add(name))
+        uuids = [c.id for c in categories]
+
+        page = api.categories_list(limit=2)
+
+        self.assertEqual(category_names[:2], [c.name for c in page])
+
+        last = page[-1].id
+        page = api.categories_list(limit=3, marker=last)
+        self.assertEqual(category_names[2:5], [c.name for c in page])
+
+        page = api.categories_list(marker=uuids[-1])
+        self.assertEqual([], page)
+
+        category_names.reverse()
+        page = api.categories_list({'sort_dir': 'desc'})
+        self.assertEqual(category_names, [c.name for c in page])

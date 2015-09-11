@@ -17,7 +17,10 @@
 import re
 
 import mock
+import semantic_version
 import yaql
+from yaql.language import exceptions
+from yaql.language import utils
 
 import murano.dsl.helpers as helpers
 import murano.dsl.namespace_resolver as ns_resolver
@@ -28,7 +31,6 @@ ROOT_CLASS = 'io.murano.Object'
 
 
 class TestNamespaceResolving(base.MuranoTestCase):
-
     def setUp(self):
         super(TestNamespaceResolving, self).setUp()
 
@@ -112,7 +114,6 @@ class Bunch(object):
 
 
 class TestHelperFunctions(base.MuranoTestCase):
-
     def setUp(self):
         super(TestHelperFunctions, self).setUp()
 
@@ -122,84 +123,69 @@ class TestHelperFunctions(base.MuranoTestCase):
         self.assertTrue(re.match(r'[a-z0-9]{32}', generated_id))
 
     def test_evaluate(self):
-        yaql_value = mock.Mock(spec=yaql_expression.YaqlExpression,
-                               evaluate=lambda context: 'atom')
-        complex_value = {yaql_value: ['some', (1, yaql_value), lambda: 'hi!'],
+        yaql_value = mock.Mock(yaql_expression.YaqlExpression,
+                               return_value='atom')
+        complex_value = {yaql_value: ['some', (1, yaql_value), 'hi!'],
                          'sample': [yaql_value, xrange(5)]}
-        complex_literal = {'atom': ['some', (1, 'atom'), 'hi!'],
-                           'sample': ['atom', [0, 1, 2, 3, 4]]}
-        # tuple(evaluate(list)) transformation adds + 1
-        complex_literal_depth = 3 + 1
-
-        context = yaql.create_context(False)
-        evaluated_value = helpers.evaluate(yaql_value, context, 1)
-        non_evaluated_value = helpers.evaluate(yaql_value, context, 0)
+        complex_literal = utils.FrozenDict({
+            'atom': ('some', (1, 'atom'), 'hi!'),
+            'sample': ('atom', (0, 1, 2, 3, 4))
+        })
+        context = yaql.create_context()
+        evaluated_value = helpers.evaluate(yaql_value, context)
         evaluated_complex_value = helpers.evaluate(complex_value, context)
-        non_evaluated_complex_value = helpers.evaluate(
-            complex_value, context, complex_literal_depth)
 
         self.assertEqual('atom', evaluated_value)
-        self.assertNotEqual('atom', non_evaluated_value)
         self.assertEqual(complex_literal, evaluated_complex_value)
-        self.assertNotEqual(complex_literal, non_evaluated_complex_value)
-
-    def test_needs_evaluation(self):
-        testee = helpers.needs_evaluation
-        parsed_expr = yaql.parse("string")
-        yaql_expr = yaql_expression.YaqlExpression("string")
-
-        self.assertTrue(testee(parsed_expr))
-        self.assertTrue(testee(yaql_expr))
-        self.assertTrue(testee({yaql_expr: 1}))
-        self.assertTrue(testee({'label': yaql_expr}))
-        self.assertTrue(testee([yaql_expr]))
 
 
 class TestYaqlExpression(base.MuranoTestCase):
-
     def setUp(self):
+        self._version = semantic_version.Version.coerce('1.0')
         super(TestYaqlExpression, self).setUp()
 
     def test_expression(self):
-        yaql_expr = yaql_expression.YaqlExpression('string')
+        yaql_expr = yaql_expression.YaqlExpression('string', self._version)
 
         self.assertEqual('string', yaql_expr.expression)
 
     def test_unicode_expression(self):
-        yaql_expr = yaql_expression.YaqlExpression(u"'yaql ♥ unicode'")
+        yaql_expr = yaql_expression.YaqlExpression(u"'yaql ♥ unicode'",
+                                                   self._version)
 
         self.assertEqual(u"'yaql ♥ unicode'".encode('utf-8'),
                          yaql_expr.expression)
 
     def test_unicode_expression_expression(self):
-        yaql_expr = yaql_expression.YaqlExpression(u"'yaql ♥ unicode'")
-        yaql_expr2 = yaql_expression.YaqlExpression(yaql_expr)
+        yaql_expr = yaql_expression.YaqlExpression(u"'yaql ♥ unicode'",
+                                                   self._version)
+        yaql_expr2 = yaql_expression.YaqlExpression(yaql_expr, self._version)
 
         self.assertEqual(u"'yaql ♥ unicode'".encode('utf-8'),
                          yaql_expr2.expression)
 
     def test_evaluate_calls(self):
         string = 'string'
-        expected_calls = [mock.call(string),
+        expected_calls = [mock.call(string, self._version),
                           mock.call().evaluate(context=None)]
 
-        with mock.patch('yaql.parse') as mock_parse:
-            yaql_expr = yaql_expression.YaqlExpression(string)
-            yaql_expr.evaluate()
+        with mock.patch('murano.dsl.yaql_integration.parse') as mock_parse:
+            yaql_expr = yaql_expression.YaqlExpression(string, self._version)
+            yaql_expr(None)
 
         self.assertEqual(expected_calls, mock_parse.mock_calls)
 
-    def test_match_returns(self):
-        expr = yaql_expression.YaqlExpression('string')
+    def test_is_expression_returns(self):
+        expr = yaql_expression.YaqlExpression('string', self._version)
 
-        with mock.patch('yaql.parse'):
-            self.assertTrue(expr.match('$some'))
-            self.assertTrue(expr.match('$.someMore'))
+        with mock.patch('murano.dsl.yaql_integration.parse'):
+            self.assertTrue(expr.is_expression('$some', self._version))
+            self.assertTrue(expr.is_expression('$.someMore', self._version))
 
-        with mock.patch('yaql.parse') as parse_mock:
-            parse_mock.side_effect = yaql.exceptions.YaqlGrammarException
-            self.assertFalse(expr.match(''))
+        with mock.patch('murano.dsl.yaql_integration.parse') as parse_mock:
+            parse_mock.side_effect = exceptions.YaqlGrammarException
+            self.assertFalse(expr.is_expression('', self._version))
 
-        with mock.patch('yaql.parse') as parse_mock:
-            parse_mock.side_effect = yaql.exceptions.YaqlLexicalException
-            self.assertFalse(expr.match(''))
+        with mock.patch('murano.dsl.yaql_integration.parse') as parse_mock:
+            parse_mock.side_effect = exceptions.YaqlLexicalException
+            self.assertFalse(expr.is_expression('', self._version))

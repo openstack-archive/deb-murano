@@ -12,17 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import murano.dsl.principal_objects.exception
-import murano.dsl.principal_objects.stack_trace
-import murano.dsl.principal_objects.sys_object
+from murano.dsl.principal_objects import exception
+from murano.dsl.principal_objects import stack_trace
+from murano.dsl.principal_objects import sys_object
 
 
-def register(class_loader):
-    sys_object = murano.dsl.principal_objects.sys_object
-    class_loader.import_class(sys_object.SysObject)
-
-    stack_trace = murano.dsl.principal_objects.stack_trace
-    class_loader.import_class(stack_trace.StackTrace)
-
-    exception = murano.dsl.principal_objects.exception
-    class_loader.import_class(exception.DslException)
+def register(package):
+    package.register_class(sys_object.SysObject)
+    package.register_class(stack_trace.StackTrace)
+    package.register_class(exception.DslException)

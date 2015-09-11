@@ -19,11 +19,11 @@ import greenlet
 from oslo_config import cfg
 from oslo_log import log as logging
 
-import murano.common.exceptions as exceptions
+from murano.common import exceptions
+from murano.common.i18n import _LE
+from murano.dsl import dsl
 from murano.dsl import helpers
-import murano.dsl.murano_class as murano_class
-import murano.dsl.murano_object as murano_object
-import murano.engine.system.common as common
+from murano.engine.system import common
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -33,9 +33,9 @@ class AgentListenerException(Exception):
     pass
 
 
-@murano_class.classname('io.murano.system.AgentListener')
-class AgentListener(murano_object.MuranoObject):
-    def initialize(self, _context, name):
+@dsl.name('io.murano.system.AgentListener')
+class AgentListener(object):
+    def __init__(self, name):
         self._enabled = False
         if CONF.engine.disable_murano_agent:
             return
@@ -46,9 +46,8 @@ class AgentListener(murano_object.MuranoObject):
 
     def _check_enabled(self):
         if CONF.engine.disable_murano_agent:
-            LOG.debug(
-                'Use of murano-agent is disallowed '
-                'by the server configuration')
+            LOG.error(_LE('Use of murano-agent is disallowed '
+                          'by the server configuration'))
 
             raise exceptions.PolicyViolationException(
                 'Use of murano-agent is disallowed '
@@ -58,17 +57,17 @@ class AgentListener(murano_object.MuranoObject):
     def enabled(self):
         return self._enabled
 
-    def queueName(self):
+    def queue_name(self):
         return self._results_queue
 
-    def start(self, _context):
+    def start(self):
         if CONF.engine.disable_murano_agent:
             # Noop
             LOG.debug("murano-agent is disabled by the server")
             return
 
         if self._receive_thread is None:
-            helpers.get_environment(_context).on_session_finish(
+            helpers.get_environment().on_session_finish(
                 lambda: self.stop())
             self._receive_thread = eventlet.spawn(self._receive)
 
@@ -87,10 +86,10 @@ class AgentListener(murano_object.MuranoObject):
             finally:
                 self._receive_thread = None
 
-    def subscribe(self, message_id, event, _context):
+    def subscribe(self, message_id, event):
         self._check_enabled()
         self._subscriptions[message_id] = event
-        self.start(_context)
+        self.start()
 
     def unsubscribe(self, message_id):
         self._check_enabled()
@@ -106,8 +105,9 @@ class AgentListener(murano_object.MuranoObject):
                         continue
                     msg.ack()
                     msg_id = msg.body.get('SourceID', msg.id)
-                    LOG.debug("Got execution result: id '{0}'"
-                              " body '{1}'".format(msg_id, msg.body))
+                    LOG.debug("Got execution result: id '{msg_id}'"
+                              " body '{body}'".format(msg_id=msg_id,
+                                                      body=msg.body))
                     if msg_id in self._subscriptions:
                         event = self._subscriptions.pop(msg_id)
                         event.send(msg.body)

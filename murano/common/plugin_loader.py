@@ -21,6 +21,7 @@ import six
 from stevedore import dispatch
 
 from murano.common.i18n import _LE, _LI, _LW
+from murano.dsl import murano_package
 
 
 CONF = cfg.CONF
@@ -49,7 +50,8 @@ class PluginLoader(object):
         dist_name = str(extension.entry_point.dist)
         name = extension.entry_point.name
         if not NAME_RE.match(name):
-            LOG.warning(_LW("Entry-point 'name' %s is invalid") % name)
+            LOG.warning(_LW("Entry-point 'name' {name} is invalid").format(
+                name=name))
             return
         name = "%s.%s" % (self.namespace, name)
         name_map.setdefault(name, []).append(dist_name)
@@ -63,19 +65,21 @@ class PluginLoader(object):
         try:
             package.classes[name] = initialize_plugin(plugin)
         except Exception:
-            LOG.exception(_LE("Unable to initialize plugin for %s") % name)
+            LOG.exception(_LE("Unable to initialize plugin for {name}").format(
+                name=name))
             return
-        LOG.info(_LI("Loaded class '%(class_name)s' from '%(dist)s'")
-                 % dict(class_name=name, dist=dist_name))
+        LOG.info(_LI("Loaded class {class_name} from {dist}").format(
+                 class_name=name, dist=dist_name))
 
     def cleanup_duplicates(self, name_map):
         for class_name, package_names in six.iteritems(name_map):
             if len(package_names) >= 2:
                 LOG.warning(_LW("Class is defined in multiple packages!"))
                 for package_name in package_names:
-                    LOG.warning(_LW("Disabling class '%(class_name)s' in "
-                                    "'%(dist)s' due to conflict") %
-                                dict(class_name=class_name, dist=package_name))
+                    LOG.warning(_LW("Disabling class {class_name} in {dist} "
+                                    "due to conflict").format(
+                                        class_name=class_name,
+                                        dist=package_name))
                     self.packages[package_name].classes.pop(class_name)
 
     @staticmethod
@@ -88,29 +92,20 @@ class PluginLoader(object):
 
     @staticmethod
     def _on_load_failure(manager, ep, exc):
-        LOG.warning(_LW("Error loading entry-point '%(ep)s' "
-                        "from package '%(dist)s': %(err)s")
-                    % dict(ep=ep.name, dist=ep.dist, err=exc))
+        LOG.warning(_LW("Error loading entry-point {ep} from package {dist}: "
+                        "{err}").format(ep=ep.name, dist=ep.dist, err=exc))
 
-    def register_in_loader(self, class_loader):
+    def register_in_loader(self, package_loader):
         for package in six.itervalues(self.packages):
-            for class_name, clazz in six.iteritems(package.classes):
-                if hasattr(clazz, "_murano_class_name"):
-                    LOG.warning(_LW("Class '%(class_name)s' has a MuranoPL "
-                                    "name '%(name)s' defined which will be "
-                                    "ignored") %
-                                dict(class_name=class_name,
-                                name=getattr(clazz, "_murano_class_name")))
-                LOG.debug("Registering '%s' from '%s' in class loader"
-                          % (class_name, package.name))
-                class_loader.import_class(clazz, name=class_name)
+            package_loader.register_package(
+                MuranoPackage(package_loader, package))
 
 
 def initialize_plugin(plugin):
     if hasattr(plugin, "init_plugin"):
         initializer = getattr(plugin, "init_plugin")
         if inspect.ismethod(initializer) and initializer.__self__ is plugin:
-            LOG.debug("Initializing plugin class %s" % plugin)
+            LOG.debug("Initializing plugin class {name}".format(name=plugin))
             initializer()
     return plugin
 
@@ -126,3 +121,22 @@ class PackageDefinition(object):
         else:
             self.info = None
         self.classes = {}
+
+
+class MuranoPackage(murano_package.MuranoPackage):
+    def __init__(self, pkg_loader, package_definition):
+        super(MuranoPackage, self).__init__(
+            pkg_loader, package_definition.name, runtime_version='1.0')
+        for class_name, clazz in six.iteritems(package_definition.classes):
+            if hasattr(clazz, "_murano_class_name"):
+                LOG.warning(_LW("Class '%(class_name)s' has a MuranoPL "
+                                "name '%(name)s' defined which will be "
+                                "ignored") %
+                            dict(class_name=class_name,
+                            name=getattr(clazz, "_murano_class_name")))
+            LOG.debug("Registering '%s' from '%s' in class loader"
+                      % (class_name, package_definition.name))
+            self.register_class(clazz, class_name)
+
+    def get_resource(self, name):
+        raise NotImplementedError()

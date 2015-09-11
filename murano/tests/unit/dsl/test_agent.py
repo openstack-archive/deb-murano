@@ -14,9 +14,11 @@
 # limitations under the License.
 
 import mock
-import yaql.context
 
 from murano.common import exceptions as exc
+from murano.dsl import constants
+from murano.dsl import helpers
+from murano.dsl import yaql_integration
 from murano.engine import environment
 from murano.engine.system import agent
 from murano.engine.system import agent_listener
@@ -29,26 +31,31 @@ class TestAgentListener(test_case.DslTestCase):
         super(TestAgentListener, self).setUp()
 
         # Register Agent class
-        self.class_loader.import_class(agent_listener.AgentListener)
+        self.package_loader.load_package('io.murano', None).register_class(
+            agent_listener.AgentListener)
         model = om.Object(
             'AgentListenerTests')
         self.runner = self.new_runner(model)
-        self.context = yaql.context.Context()
-        self.context.set_data(environment.Environment(), '?environment')
+        self.context = yaql_integration.create_empty_context()
+        self.context[constants.CTX_ENVIRONMENT] = environment.Environment()
 
     def test_listener_enabled(self):
         self.override_config('disable_murano_agent', False, 'engine')
-        al = self.runner.testAgentListener()
+        al = self.runner.testAgentListener().extension
         self.assertTrue(al.enabled)
-        al.subscribe('msgid', 'event', self.context)
-        self.assertEqual({'msgid': 'event'}, al._subscriptions)
+        with helpers.contextual(self.context):
+            try:
+                al.subscribe('msgid', 'event')
+                self.assertEqual({'msgid': 'event'}, al._subscriptions)
+            finally:
+                al.stop()
 
     def test_listener_disabled(self):
         self.override_config('disable_murano_agent', True, 'engine')
-        al = self.runner.testAgentListener()
+        al = self.runner.testAgentListener().extension
         self.assertFalse(al.enabled)
         self.assertRaises(exc.PolicyViolationException,
-                          al.subscribe, 'msgid', 'event', None)
+                          al.subscribe, 'msgid', 'event')
 
 
 class TestAgent(test_case.DslTestCase):
@@ -56,7 +63,8 @@ class TestAgent(test_case.DslTestCase):
         super(TestAgent, self).setUp()
 
         # Register Agent class
-        self.class_loader.import_class(agent.Agent)
+        self.package_loader.load_package('io.murano', None).register_class(
+            agent.Agent)
         model = om.Object(
             'AgentTests')
         self.runner = self.new_runner(model)
@@ -68,20 +76,20 @@ class TestAgent(test_case.DslTestCase):
         agent_cls = 'murano.engine.system.agent.Agent'
         with mock.patch(agent_cls + '._get_environment') as f:
             f.return_value = m
-            a = self.runner.testAgent()
+            a = self.runner.testAgent().extension
             self.assertTrue(a.enabled)
             self.assertEqual(m, a._environment)
 
             with mock.patch(agent_cls + '._send') as s:
                 s.return_value = mock.MagicMock()
-                a.sendRaw({}, None)
-                s.assert_called_with({}, False, 0, None)
+                a.send_raw({})
+                s.assert_called_with({}, False, 0)
 
     def test_agent_disabled(self):
         self.override_config('disable_murano_agent', True, 'engine')
-        a = self.runner.testAgent()
+        a = self.runner.testAgent().extension
         self.assertFalse(a.enabled)
-        self.assertRaises(exc.PolicyViolationException, a.call, {}, None, None)
-        self.assertRaises(exc.PolicyViolationException, a.send, {}, None, None)
-        self.assertRaises(exc.PolicyViolationException, a.callRaw, {}, None)
-        self.assertRaises(exc.PolicyViolationException, a.sendRaw, {}, None)
+        self.assertRaises(exc.PolicyViolationException, a.call, {}, None)
+        self.assertRaises(exc.PolicyViolationException, a.send, {}, None)
+        self.assertRaises(exc.PolicyViolationException, a.call_raw, {})
+        self.assertRaises(exc.PolicyViolationException, a.send_raw, {})

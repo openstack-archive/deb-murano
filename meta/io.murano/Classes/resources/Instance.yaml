@@ -17,6 +17,9 @@ Properties:
   keyname:
     Contract: $.string()
     Default: null
+  openstackId:
+    Contract: $.string()
+    Usage: Out
   availabilityZone:
     Contract: $.string().notNull()
     Default: nova
@@ -79,7 +82,6 @@ Methods:
 
   deploy:
     Body:
-
       - $securityGroupName: coalesce(
             $.securityGroupName,
             $.environment.securityGroupManager.defaultGroupName
@@ -117,6 +119,10 @@ Methods:
               description: format('Network IPs assigned to {0} instance', $.name)
               value:
                 get_attr: [ $.name, networks ]
+            format('{0}-id', $.name):
+              description: format('ID of {0} instance', $.name)
+              value:
+                get_resource: $.name
 
       - $.instanceTemplate: $.instanceTemplate.mergeWith($template)
 
@@ -125,11 +131,13 @@ Methods:
       - $.environment.stack.updateTemplate($.instanceTemplate)
       - $.environment.stack.push()
       - $outputs: $.environment.stack.output()
-      # Changing this to use the .networks attribute instead of 'addresses'
-      - $.ipAddresses: $outputs.get(format('{0}-assigned-ips', $this.name)).values().flatten()
+      - $.ipAddresses: $outputs.get(format('{0}-assigned-ips', $this.name)).values().flatten().distinct()
+      - $.openstackId: $outputs.get(format('{0}-id', $this.name))
       - If: $._floatingIpOutputName != null
         Then:
           - $.floatingIpAddress: $outputs.get($._floatingIpOutputName)
+          - If: $.floatingIpAddress != null
+            Then: $.setAttr(fipAssigned, true)
       - $.environment.instanceNotifier.trackCloudInstance($this)
 
   detectPrimaryNetwork:
@@ -209,10 +217,6 @@ Methods:
           - $.instanceTemplate: $.instanceTemplate.mergeWith($template)
 
       - $._floatingIpOutputName: coalesce($._floatingIpOutputName, $joinResult.instanceFipOutput)
-
-      - If: $assignFip and $joinResult.instanceFipOutput != null
-        Then:
-          - $.setAttr(fipAssigned, true)
 
   destroy:
     # FIXME(smelikyan): All allocated resources should be cleaned-up on destroy

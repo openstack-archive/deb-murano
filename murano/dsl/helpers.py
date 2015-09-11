@@ -13,93 +13,54 @@
 #    under the License.
 
 import collections
+import contextlib
+import functools
 import re
+import string
 import sys
 import types
 import uuid
 
 import eventlet.greenpool
-import yaql.expressions
+import eventlet.greenthread
+import semantic_version
+import yaql.language.exceptions
+import yaql.language.expressions
+from yaql.language import utils as yaqlutils
+
 
 from murano.common import utils
-import murano.dsl.murano_object
-import murano.dsl.yaql_expression as yaql_expression
+from murano.dsl import constants
+from murano.dsl import dsl_types
+from murano.dsl import exceptions
+
+KEYWORD_REGEX = re.compile(r'(?!__)\b[^\W\d]\w*\b')
+
+_threads_sequencer = 0
 
 
-def serialize(value, memo=None):
-    if memo is None:
-        memo = set()
-    if isinstance(value, types.DictionaryType):
-        result = {}
-        for d_key, d_value in value.iteritems():
-            result[d_key] = serialize(d_value, memo)
-        return result
-    elif isinstance(value, murano.dsl.murano_object.MuranoObject):
-        if value.object_id not in memo:
-            memo.add(value.object_id)
-            return serialize(value.to_dictionary(), memo)
-        else:
-            return value.object_id
-    elif isinstance(value, types.ListType):
-        return [serialize(t, memo) for t in value]
+def evaluate(value, context):
+    if isinstance(value, (dsl_types.YaqlExpression,
+                          yaql.language.expressions.Statement)):
+        return value(context)
+    elif isinstance(value, yaqlutils.MappingType):
+        return yaqlutils.FrozenDict(
+            (evaluate(d_key, context),
+             evaluate(d_value, context))
+            for d_key, d_value in value.iteritems())
+    elif yaqlutils.is_sequence(value):
+        return tuple(evaluate(t, context) for t in value)
+    elif isinstance(value, yaqlutils.SetType):
+        return frozenset(evaluate(t, context) for t in value)
+    elif yaqlutils.is_iterable(value):
+        return tuple(
+            evaluate(t, context)
+            for t in yaqlutils.limit_iterable(
+                value, constants.ITERATORS_LIMIT))
+    elif isinstance(value, dsl_types.MuranoObjectInterface):
+        return value.object
     else:
         return value
-
-
-def execute_instruction(instruction, action, context):
-    old_instruction = context.get_data('$?currentInstruction')
-    context.set_data(instruction, '?currentInstruction')
-    result = action()
-    context.set_data(old_instruction, '?currentInstruction')
-    return result
-
-
-def evaluate(value, context, max_depth=sys.maxint):
-    if isinstance(value, yaql.expressions.Expression):
-        value = yaql_expression.YaqlExpression(value)
-
-    if isinstance(value, yaql_expression.YaqlExpression):
-        func = lambda: evaluate(value.evaluate(context), context, 1)
-        if max_depth <= 0:
-            return func
-        else:
-            return execute_instruction(value, func, context)
-
-    elif isinstance(value, types.DictionaryType):
-        result = {}
-        for d_key, d_value in value.iteritems():
-            result[evaluate(d_key, context, max_depth - 1)] = \
-                evaluate(d_value, context, max_depth - 1)
-        return result
-    elif isinstance(value, types.ListType):
-        return [evaluate(t, context, max_depth - 1) for t in value]
-    elif isinstance(value, types.TupleType):
-        return tuple(evaluate(list(value), context, max_depth - 1))
-    elif callable(value):
-        return value()
-    elif isinstance(value, types.StringTypes):
-        return value
-    elif isinstance(value, collections.Iterable):
-        return list(value)
-    else:
-        return value
-
-
-def needs_evaluation(value):
-    if isinstance(value, (yaql_expression.YaqlExpression,
-                          yaql.expressions.Expression)):
-        return True
-    elif isinstance(value, types.DictionaryType):
-        for d_key, d_value in value.iteritems():
-            if needs_evaluation(d_value) or needs_evaluation(d_key):
-                return True
-    elif isinstance(value, types.StringTypes):
-        return False
-    elif isinstance(value, collections.Iterable):
-        for t in value:
-            if needs_evaluation(t):
-                return True
-    return False
 
 
 def merge_lists(list1, list2):
@@ -144,16 +105,17 @@ def generate_id():
     return uuid.uuid4().hex
 
 
-def parallel_select(collection, func):
+def parallel_select(collection, func, limit=1000):
     # workaround for eventlet issue 232
     # https://github.com/eventlet/eventlet/issues/232
     def wrapper(element):
         try:
-            return func(element), False, None
+            with contextual(get_context()):
+                return func(element), False, None
         except Exception as e:
             return e, True, sys.exc_info()[2]
 
-    gpool = eventlet.greenpool.GreenPool()
+    gpool = eventlet.greenpool.GreenPool(limit)
     result = list(gpool.imap(wrapper, collection))
     try:
         exception = next(t for t in result if t[1])
@@ -163,54 +125,293 @@ def parallel_select(collection, func):
         raise exception[0], None, exception[2]
 
 
-def to_python_codestyle(name):
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
-
 def enum(**enums):
     return type('Enum', (), enums)
 
 
-def get_executor(context):
-    return context.get_data('$?executor')
+def get_context():
+    current_thread = eventlet.greenthread.getcurrent()
+    return getattr(current_thread, '__murano_context', None)
 
 
-def get_class_loader(context):
-    return context.get_data('$?classLoader')
+def get_executor(context=None):
+    context = context or get_context()
+    result = context[constants.CTX_EXECUTOR]
+    return None if not result else result()
 
 
-def get_type(context):
-    return context.get_data('$?type')
+def get_type(context=None):
+    context = context or get_context()
+    return context[constants.CTX_TYPE]
 
 
-def get_environment(context):
-    return context.get_data('$?environment')
+def get_environment(context=None):
+    context = context or get_context()
+    return context[constants.CTX_ENVIRONMENT]
 
 
-def get_object_store(context):
-    return context.get_data('$?objectStore')
+def get_object_store(context=None):
+    context = context or get_context()
+    return context[constants.CTX_THIS].object_store
 
 
-def get_this(context):
-    return context.get_data('$?this')
+def get_package_loader(context=None):
+    context = context or get_context()
+    result = context[constants.CTX_PACKAGE_LOADER]
+    return None if not result else result()
 
 
-def get_caller_context(context):
-    return context.get_data('$?callerContext')
+def get_this(context=None):
+    context = context or get_context()
+    return context[constants.CTX_THIS]
 
 
-def get_attribute_store(context):
-    return context.get_data('$?attributeStore')
+def get_caller_context(context=None):
+    context = context or get_context()
+    return context[constants.CTX_CALLER_CONTEXT]
 
 
-def get_current_instruction(context):
-    return context.get_data('$?currentInstruction')
+def get_attribute_store(context=None):
+    context = context or get_context()
+    store = context[constants.CTX_ATTRIBUTE_STORE]
+    return None if not store else store()
 
 
-def get_current_method(context):
-    return context.get_data('$?currentMethod')
+def get_current_instruction(context=None):
+    context = context or get_context()
+    return context[constants.CTX_CURRENT_INSTRUCTION]
 
 
-def get_current_exception(context):
-    return context.get_data('$?currentException')
+def get_current_method(context=None):
+    context = context or get_context()
+    return context[constants.CTX_CURRENT_METHOD]
+
+
+def get_yaql_engine(context=None):
+    context = context or get_context()
+    return context[constants.CTX_YAQL_ENGINE]
+
+
+def get_current_exception(context=None):
+    context = context or get_context()
+    return context[constants.CTX_CURRENT_EXCEPTION]
+
+
+def are_property_modifications_allowed(context=None):
+    context = context or get_context()
+    return context[constants.CTX_ALLOW_PROPERTY_WRITES] or False
+
+
+def get_class(name, context=None):
+    context = context or get_context()
+    murano_class = get_type(context)
+    return murano_class.package.find_class(name)
+
+
+def is_keyword(text):
+    return KEYWORD_REGEX.match(text) is not None
+
+
+def get_current_thread_id():
+    global _threads_sequencer
+
+    current_thread = eventlet.greenthread.getcurrent()
+    thread_id = getattr(current_thread, '__thread_id', None)
+    if thread_id is None:
+        thread_id = 'T' + str(_threads_sequencer)
+        _threads_sequencer += 1
+        setattr(current_thread, '__thread_id', thread_id)
+    return thread_id
+
+
+@contextlib.contextmanager
+def contextual(ctx):
+    current_thread = eventlet.greenthread.getcurrent()
+    current_context = getattr(current_thread, '__murano_context', None)
+    if ctx:
+        setattr(current_thread, '__murano_context', ctx)
+    try:
+        yield
+    finally:
+        if current_context:
+            setattr(current_thread, '__murano_context', current_context)
+        elif hasattr(current_thread, '__murano_context'):
+            delattr(current_thread, '__murano_context')
+
+
+def parse_version_spec(version_spec):
+    if isinstance(version_spec, semantic_version.Spec):
+        return normalize_version_spec(version_spec)
+    if isinstance(version_spec, semantic_version.Version):
+        return normalize_version_spec(
+            semantic_version.Spec('==' + str(version_spec)))
+    if not version_spec:
+        version_spec = '0'
+    version_spec = str(version_spec).translate(None, string.whitespace)
+    if version_spec[0].isdigit():
+        version_spec = '==' + str(version_spec)
+    version_spec = semantic_version.Spec(version_spec)
+    return normalize_version_spec(version_spec)
+
+
+def parse_version(version):
+    if isinstance(version, semantic_version.Version):
+        return version
+    if not version:
+        version = '0'
+    return semantic_version.Version.coerce(str(version))
+
+
+def traverse(seed, producer=None, track_visited=True):
+    if not yaqlutils.is_iterable(seed):
+        seed = [seed]
+    visited = None if not track_visited else set()
+    queue = collections.deque(seed)
+    while queue:
+        item = queue.popleft()
+        if track_visited:
+            if item in visited:
+                continue
+            visited.add(item)
+        produced = (yield item)
+        if produced is None and producer:
+            produced = producer(item)
+        if produced:
+            queue.extend(produced)
+
+
+def cast(obj, murano_class, pov_or_version_spec=None):
+    if isinstance(obj, dsl_types.MuranoObjectInterface):
+        obj = obj.object
+    if isinstance(pov_or_version_spec, dsl_types.MuranoClass):
+        pov_or_version_spec = pov_or_version_spec.package
+    elif isinstance(pov_or_version_spec, types.StringTypes):
+        pov_or_version_spec = parse_version_spec(pov_or_version_spec)
+    if isinstance(murano_class, dsl_types.MuranoClass):
+        if pov_or_version_spec is None:
+            pov_or_version_spec = parse_version_spec(murano_class.version)
+        murano_class = murano_class.name
+
+    candidates = []
+    for cls in obj.type.ancestors():
+        if cls.name != murano_class:
+            continue
+        elif isinstance(pov_or_version_spec, semantic_version.Version):
+            if cls.version != pov_or_version_spec:
+                continue
+        elif isinstance(pov_or_version_spec, semantic_version.Spec):
+            if cls.version not in pov_or_version_spec:
+                continue
+        elif isinstance(pov_or_version_spec, dsl_types.MuranoPackage):
+            requirement = pov_or_version_spec.requirements.get(
+                cls.package.name)
+            if requirement is None:
+                raise exceptions.NoClassFound(murano_class)
+            if cls.version not in requirement:
+                continue
+        elif pov_or_version_spec is not None:
+            raise ValueError('pov_or_version_spec of unsupported '
+                             'type {0}'.format(type(pov_or_version_spec)))
+        candidates.append(cls)
+    if not candidates:
+        raise exceptions.NoClassFound(murano_class)
+    elif len(candidates) > 1:
+        raise exceptions.AmbiguousClassName(murano_class)
+    return obj.cast(candidates[0])
+
+
+def is_instance_of(obj, class_name, pov_or_version_spec=None):
+    try:
+        cast(obj, class_name, pov_or_version_spec)
+        return True
+    except (exceptions.NoClassFound, exceptions.AmbiguousClassName):
+        return False
+
+
+def filter_parameters_dict(parameters):
+    parameters = parameters.copy()
+    for name in parameters.keys():
+        if not is_keyword(name):
+            del parameters[name]
+    return parameters
+
+
+def memoize(func):
+    cache = {}
+
+    @functools.wraps(func)
+    def wrap(*args):
+        if args not in cache:
+            result = func(*args)
+            cache[args] = result
+            return result
+        else:
+            return cache[args]
+    return wrap
+
+
+def normalize_version_spec(version_spec):
+    def coerce(v):
+        return semantic_version.Version('{0}.{1}.{2}'.format(
+            v.major, v.minor or 0, v.patch or 0
+        ))
+
+    def increment(v):
+        # NOTE(ativelkov): replace these implementations with next_minor() and
+        # next_major() calls when the semantic_version is updated in global
+        # requirements.
+        if v.minor is None:
+            return semantic_version.Version(
+                '.'.join(str(x) for x in [v.major + 1, 0, 0]))
+        else:
+            return semantic_version.Version(
+                '.'.join(str(x) for x in [v.major, v.minor + 1, 0]))
+
+    def extend(v):
+        return semantic_version.Version(str(v) + '-0')
+
+    transformations = {
+        '>': [('>=', (increment, extend))],
+        '>=': [('>=', (coerce,))],
+        '<': [('<', (coerce, extend))],
+        '<=': [('<', (increment, extend))],
+        '!=': [('>=', (increment, extend))],
+        '==': [('>=', (coerce,)), ('<', (increment, coerce, extend))]
+    }
+
+    new_parts = []
+    for item in version_spec.specs:
+        if item.kind == '*':
+            continue
+        elif item.spec.patch is not None:
+            new_parts.append(str(item))
+        else:
+            for op, funcs in transformations[item.kind]:
+                new_parts.append('{0}{1}'.format(
+                    op,
+                    reduce(lambda v, f: f(v), funcs, item.spec)
+                ))
+    if not new_parts:
+        return semantic_version.Spec('*')
+    return semantic_version.Spec(*new_parts)
+
+
+semver_to_api_map = {
+    '>': 'gt',
+    '>=': 'ge',
+    '<': 'lt',
+    '<=': 'le',
+    '!=': 'ne',
+    '==': 'eq'
+}
+
+
+def breakdown_spec_to_query(normalized_spec):
+    res = []
+    for item in normalized_spec.specs:
+        if item.kind == '*':
+            continue
+        else:
+            res.append("%s:%s" % (semver_to_api_map[item.kind],
+                                  item.spec))
+    return res

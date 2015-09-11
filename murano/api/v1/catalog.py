@@ -21,6 +21,7 @@ import jsonschema
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
+from oslo_log import versionutils
 from webob import exc
 
 import murano.api.v1
@@ -46,8 +47,8 @@ PKG_PARAMS_MAP = murano.api.v1.PKG_PARAMS_MAP
 def _check_content_type(req, content_type):
     try:
         req.get_content_type((content_type,))
-    except exceptions.InvalidContentType:
-        msg = _("Content-Type must be '{0}'").format(content_type)
+    except exceptions.UnsupportedContentType:
+        msg = _("Content-Type must be '{type}'").format(type=content_type)
         LOG.error(msg)
         raise exc.HTTPBadRequest(explanation=msg)
 
@@ -69,10 +70,9 @@ def _get_filters(query_params):
         for i in order_by[:]:
             if ORDER_VALUES and i not in ORDER_VALUES:
                 filters['order_by'].remove(i)
-                LOG.warning(_LW(
-                    "Value of 'order_by' parameter is not valid. "
-                    "Allowed values are: {0}. Skipping it.").format(
-                    ", ".join(ORDER_VALUES)))
+                LOG.warning(_LW("Value of 'order_by' parameter is not valid. "
+                                "Allowed values are: {values}. Skipping it.")
+                            .format(values=", ".join(ORDER_VALUES)))
     return filters
 
 
@@ -95,9 +95,9 @@ def _validate_body(body):
                 ' The limit is {0} Mb').format(mb_limit))
 
     if len(body.keys()) > 2:
-        msg = _("'multipart/form-data' request body should contain "
-                "1 or 2 parts: json string and zip archive. Current body "
-                "consists of {0} part(s)").format(len(body.keys()))
+        msg = _("'multipart/form-data' request body should contain 1 or 2 "
+                "parts: json string and zip archive. Current body consists "
+                "of {amount} part(s)").format(amount=len(body.keys()))
         LOG.error(msg)
         raise exc.HTTPBadRequest(explanation=msg)
 
@@ -119,6 +119,23 @@ def _validate_body(body):
 
 class Controller(object):
     """WSGI controller for application catalog resource in Murano v1 API."""
+
+    def _validate_limit(self, value):
+            if value is None:
+                return
+            try:
+                value = int(value)
+            except ValueError:
+                msg = _("Limit param must be an integer")
+                LOG.error(msg)
+                raise exc.HTTPBadRequest(explanation=msg)
+
+            if value <= 0:
+                msg = _("Limit param must be positive")
+                LOG.error(msg)
+                raise exc.HTTPBadRequest(explanation=msg)
+
+            return value
 
     def update(self, req, body, package_id):
         """List of allowed changes:
@@ -158,28 +175,11 @@ class Controller(object):
         return package.to_dict()
 
     def search(self, req):
-        def _validate_limit(value):
-            if value is None:
-                return
-            try:
-                value = int(value)
-            except ValueError:
-                msg = _("limit param must be an integer")
-                LOG.error(msg)
-                raise exc.HTTPBadRequest(explanation=msg)
-
-            if value <= 0:
-                msg = _("limit param must be positive")
-                LOG.error(msg)
-                raise exc.HTTPBadRequest(explanation=msg)
-
-            return value
-
         policy.check("get_package", req.context)
 
         filters = _get_filters(req.GET.items())
 
-        limit = _validate_limit(filters.get('limit'))
+        limit = self._validate_limit(filters.get('limit'))
         if limit is None:
             limit = CONF.packages_opts.limit_param_default
         limit = min(CONF.packages_opts.api_limit_max, limit)
@@ -206,7 +206,8 @@ class Controller(object):
             try:
                 jsonschema.validate(package_meta, schemas.PKG_UPLOAD_SCHEMA)
             except jsonschema.ValidationError as e:
-                msg = _("Package schema is not valid: {0}").format(e)
+                msg = _("Package schema is not valid: {reason}").format(
+                    reason=e)
                 LOG.exception(msg)
                 raise exc.HTTPBadRequest(explanation=msg)
         else:
@@ -225,28 +226,30 @@ class Controller(object):
             tempf.write(content)
             package_meta['archive'] = content
         try:
-            pkg_to_upload = load_utils.load_from_file(
-                tempf.name, target_dir=None, drop_dir=True)
+            with load_utils.load_from_file(
+                    tempf.name, target_dir=None,
+                    drop_dir=True) as pkg_to_upload:
+                # extend dictionary for update db
+                for k, v in PKG_PARAMS_MAP.iteritems():
+                    if hasattr(pkg_to_upload, k):
+                        package_meta[v] = getattr(pkg_to_upload, k)
+                try:
+                    package = db_api.package_upload(
+                        package_meta, req.context.tenant)
+                except db_exc.DBDuplicateEntry:
+                    msg = _('Package with specified full '
+                            'name is already registered')
+                    LOG.exception(msg)
+                    raise exc.HTTPConflict(msg)
+                return package.to_dict()
         except pkg_exc.PackageLoadError as e:
-            msg = _("Couldn't load package from file: {0}").format(e)
+            msg = _("Couldn't load package from file: {reason}").format(
+                reason=e)
             LOG.exception(msg)
             raise exc.HTTPBadRequest(explanation=msg)
         finally:
             LOG.debug("Deleting package archive temporary file")
             os.remove(tempf.name)
-
-        # extend dictionary for update db
-        for k, v in PKG_PARAMS_MAP.iteritems():
-            if hasattr(pkg_to_upload, k):
-                package_meta[v] = getattr(pkg_to_upload, k)
-
-        try:
-            package = db_api.package_upload(package_meta, req.context.tenant)
-        except db_exc.DBDuplicateEntry:
-            msg = _('Package with specified full name is already registered')
-            LOG.exception(msg)
-            raise exc.HTTPConflict(msg)
-        return package.to_dict()
 
     def get_ui(self, req, package_id):
         target = {'package_id': package_id}
@@ -287,15 +290,65 @@ class Controller(object):
         category = db_api.category_get(category_id, packages=True)
         return category.to_dict()
 
+    @versionutils.deprecated(as_of=versionutils.deprecated.LIBERTY,
+                             in_favor_of='categories.list()')
     def show_categories(self, req):
         policy.check("get_category", req.context)
         categories = db_api.categories_list()
         return {'categories': [category.name for category in categories]}
 
     def list_categories(self, req):
+        """List all categories with pagination and sorting
+           Acceptable filter params:
+           :param sort_keys: an array of fields used to sort the list
+           :param sort_dir: the direction of the sort ('asc' or 'desc')
+           :param limit: the number of categories to list
+           :param marker: the ID of the last item in the previous page
+        """
+        def _get_category_filters(req):
+            query_params = {}
+            valid_query_params = ['sort_keys', 'sort_dir', 'limit', 'marker']
+            for key, value in req.GET.items():
+                if key not in valid_query_params:
+                    raise exc.HTTPBadRequest(
+                        _('Bad value passed to filter.'
+                          ' Got {key}, exected:{valid}').format(
+                            key=key, valid=', '.join(valid_query_params)))
+                if key == 'sort_keys':
+                    available_sort_keys = ['name', 'created',
+                                           'updated', 'package_count', 'id']
+                    value = [v.strip() for v in value.split(',')]
+                    for sort_key in value:
+                        if sort_key not in available_sort_keys:
+                            raise exc.HTTPBadRequest(
+                                explanation=_('Invalid sort key: {sort_key}.'
+                                              ' Must be one of the following:'
+                                              ' {available}').format(
+                                    sort_key=sort_key,
+                                    available=', '.join(available_sort_keys)))
+                if key == 'sort_dir':
+                    if value not in ['asc', 'desc']:
+                        msg = _('Invalid sort direction: {0}').format(value)
+                        raise exc.HTTPBadRequest(explanation=msg)
+                query_params[key] = value
+            return query_params
+
         policy.check("get_category", req.context)
-        categories = db_api.categories_list()
-        return {'categories': [category.to_dict() for category in categories]}
+
+        filters = _get_category_filters(req)
+
+        marker = filters.get('marker')
+        limit = self._validate_limit(filters.get('limit'))
+
+        result = {}
+        categories = db_api.categories_list(filters,
+                                            limit=limit,
+                                            marker=marker)
+        if len(categories) == limit:
+            result['next_marker'] = categories[-1].id
+
+        result['categories'] = [category.to_dict() for category in categories]
+        return result
 
     def add_category(self, req, body=None):
         policy.check("add_category", req.context)
@@ -326,17 +379,12 @@ class Controller(object):
         db_api.category_delete(category_id)
 
 
-class PackageSerializer(wsgi.ResponseSerializer):
-    def serialize(self, action_result, accept, action):
-        if action == 'get_ui':
-            accept = 'text/plain'
-        elif action in ('download', 'get_logo', 'get_supplier_logo'):
-            accept = 'application/octet-stream'
-        return super(PackageSerializer, self).serialize(action_result,
-                                                        accept,
-                                                        action)
-
-
 def create_resource():
-    serializer = PackageSerializer()
-    return wsgi.Resource(Controller(), serializer=serializer)
+    specific_content_types = {
+        'get_ui': ['text/plain'],
+        'download': ['application/octet-stream'],
+        'get_logo': ['application/octet-stream'],
+        'get_supplier_logo': ['application/octet-stream']}
+    deserializer = wsgi.RequestDeserializer(
+        specific_content_types=specific_content_types)
+    return wsgi.Resource(Controller(), deserializer=deserializer)

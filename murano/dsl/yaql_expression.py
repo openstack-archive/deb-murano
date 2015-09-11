@@ -16,23 +16,28 @@ import re
 import types
 
 from oslo_utils import encodeutils
-import yaql
-import yaql.exceptions
-import yaql.expressions
+from yaql.language import exceptions as yaql_exceptions
+from yaql.language import expressions
+
+from murano.dsl import constants
+from murano.dsl import dsl_types
+from murano.dsl import yaql_integration
 
 
-class YaqlExpression(object):
-    def __init__(self, expression):
+class YaqlExpression(dsl_types.YaqlExpression):
+    def __init__(self, expression, version):
+        self._version = version
         if isinstance(expression, types.StringTypes):
             self._expression = encodeutils.safe_encode(expression)
-            self._parsed_expression = yaql.parse(self._expression)
+            self._parsed_expression = yaql_integration.parse(
+                self._expression, version)
             self._file_position = None
         elif isinstance(expression, YaqlExpression):
             self._expression = expression._expression
             self._parsed_expression = expression._parsed_expression
             self._file_position = expression._file_position
-        elif isinstance(expression, yaql.expressions.Expression):
-            self._expression = str(expression)
+        elif isinstance(expression, expressions.Statement):
+            self._expression = unicode(expression)
             self._parsed_expression = expression
             self._file_position = None
         else:
@@ -41,6 +46,10 @@ class YaqlExpression(object):
     @property
     def expression(self):
         return self._expression
+
+    @property
+    def version(self):
+        return self._version
 
     @property
     def source_file_position(self):
@@ -57,58 +66,18 @@ class YaqlExpression(object):
         return self._expression
 
     @staticmethod
-    def match(expr):
-        if not isinstance(expr, types.StringTypes):
+    def is_expression(expression, version):
+        if not isinstance(expression, types.StringTypes):
             return False
-        if re.match('^[\s\w\d.:]*$', expr):
+        if re.match('^[\s\w\d.:]*$', expression):
             return False
         try:
-            yaql.parse(expr)
+            yaql_integration.parse(expression, version)
             return True
-        except yaql.exceptions.YaqlGrammarException:
-            return False
-        except yaql.exceptions.YaqlLexicalException:
+        except yaql_exceptions.YaqlParsingException:
             return False
 
-    def evaluate(self, context=None):
+    def __call__(self, context):
+        if context:
+            context[constants.CTX_CURRENT_INSTRUCTION] = self
         return self._parsed_expression.evaluate(context=context)
-
-
-class YaqlExpressionFilePosition(object):
-    def __init__(self, file_path, start_line, start_column, start_index,
-                 end_line, end_column, length):
-        self._file_path = file_path
-        self._start_line = start_line
-        self._start_column = start_column
-        self._start_index = start_index
-        self._end_line = end_line
-        self._end_column = end_column
-        self._length = length
-
-    @property
-    def file_path(self):
-        return self._file_path
-
-    @property
-    def start_line(self):
-        return self._start_line
-
-    @property
-    def start_column(self):
-        return self._start_column
-
-    @property
-    def start_index(self):
-        return self._start_index
-
-    @property
-    def end_line(self):
-        return self._end_line
-
-    @property
-    def end_column(self):
-        return self._end_column
-
-    @property
-    def length(self):
-        return self._length

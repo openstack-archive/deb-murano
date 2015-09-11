@@ -54,7 +54,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self._set_policy_rules(
             {'get_package': ''}
         )
-        for i in range(7):
+        for dummy in range(7):
             self.expect_policy_check('get_package')
 
         pkg = self._add_pkg('test_tenant', type='Library')
@@ -106,7 +106,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self._set_policy_rules(
             {'get_package': ''}
         )
-        for i in range(7):
+        for dummy in range(7):
             self.expect_policy_check('get_package')
 
         pkg = self._add_pkg('test_tenant', type='Library')
@@ -156,7 +156,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self._set_policy_rules(
             {'get_package': ''}
         )
-        for i in range(9):
+        for dummy in range(9):
             self.expect_policy_check('get_package')
 
         result = self.controller.search(self._get('/v1/catalog/packages/'))
@@ -227,8 +227,8 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
             'tags': pkg.tags,
             'logo': pkg.logo,
             'supplier_logo': pkg.supplier_logo,
-            'ui_definition': pkg.raw_ui,
-            'class_definitions': pkg.classes,
+            'ui_definition': pkg.ui,
+            'class_definitions': tuple(pkg.classes),
             'archive': pkg.blob,
             'categories': [],
         }
@@ -238,7 +238,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self._set_policy_rules(
             {'get_package': '@'}
         )
-        package_from_dir, package = self._test_package()
+        _, package = self._test_package()
 
         saved_package = db_catalog_api.package_upload(package, '')
 
@@ -257,6 +257,107 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
 
         self.assertEqual(imghdr.what('', result), 'png')
 
+    def test_download_package(self):
+        self._set_policy_rules(
+            {'download_package': '@'}
+        )
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        self.expect_policy_check('download_package',
+                                 {'package_id': saved_package.id})
+
+        req = self._get_with_accept('/catalog/packages/%s/download'
+                                    % saved_package.id,
+                                    accept='application/octet-stream')
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(200, result.status_code)
+
+    def test_download_package_negative(self):
+
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        req = self._get_with_accept('/catalog/packages/%s/download'
+                                    % saved_package.id,
+                                    accept='application/foo')
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(415, result.status_code)
+        self.assertTrue('Unsupported Content-Type' in result.body)
+
+    def test_get_ui_definition(self):
+        self._set_policy_rules(
+            {'get_package': '@'}
+        )
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        self.expect_policy_check('get_package',
+                                 {'package_id': saved_package.id})
+
+        req = self._get_with_accept('/catalog/packages/%s/ui'
+                                    % saved_package.id,
+                                    accept="text/plain")
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(200, result.status_code)
+
+    def test_get_ui_definition_negative(self):
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        req = self._get_with_accept('/catalog/packages/%s/ui'
+                                    % saved_package.id,
+                                    accept='application/foo')
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(415, result.status_code)
+        self.assertTrue('Unsupported Content-Type' in result.body)
+
+    def test_get_logo(self):
+        self._set_policy_rules(
+            {'get_package': '@'}
+        )
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        self.expect_policy_check('get_package',
+                                 {'package_id': saved_package.id})
+
+        req = self._get_with_accept('/catalog/packages/%s/logo'
+                                    % saved_package.id,
+                                    accept="application/octet-stream")
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(200, result.status_code)
+        self.assertEqual(package['logo'], result.body)
+
+    def test_get_logo_negative(self):
+        _, package = self._test_package()
+
+        saved_package = db_catalog_api.package_upload(package, '')
+
+        req = self._get_with_accept('/catalog/packages/%s/logo'
+                                    % saved_package.id,
+                                    accept='application/foo')
+
+        result = req.get_response(self.api)
+
+        self.assertEqual(415, result.status_code)
+        self.assertTrue('Unsupported Content-Type' in result.body)
+
     def test_add_public_unauthorized(self):
         self._set_policy_rules({
             'upload_package': '@',
@@ -274,7 +375,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         file_obj_str = cStringIO.StringIO("This is some dummy data")
         file_obj = mock.MagicMock(cgi.FieldStorage)
         file_obj.file = file_obj_str
-        package_from_dir, package_metadata = self._test_package()
+        package_from_dir, _ = self._test_package()
 
         body = '''\
 
@@ -289,7 +390,10 @@ This is a fake zip archive
 --BOUNDARY--'''
 
         with mock.patch('murano.packages.load_utils.load_from_file') as lff:
-            lff.return_value = package_from_dir
+            ctxmgr = mock.Mock()
+            ctxmgr.__enter__ = mock.Mock(return_value=package_from_dir)
+            ctxmgr.__exit__ = mock.Mock(return_value=False)
+            lff.return_value = ctxmgr
 
             # Uploading a non-public package
             req = self._post(
@@ -406,3 +510,54 @@ This is a fake zip archive
         result_message = result.text.replace('\n', '')
         self.assertIn('Category name should be 80 characters maximum',
                       result_message)
+
+    def test_list_category(self):
+        names = ['cat1', 'cat2']
+        for name in names:
+            db_catalog_api.category_add(name)
+
+        self._set_policy_rules({'get_category': '@'})
+        self.expect_policy_check('get_category')
+
+        req = self._get('/catalog/categories')
+        result = req.get_response(self.api)
+        self.assertEqual(200, result.status_code)
+        result_categories = json.loads(result.body)['categories']
+        self.assertEqual(2, len(result_categories))
+        self.assertEqual(names, [c['name'] for c in result_categories])
+
+        params = {'sort_keys': 'created,  id'}
+        req = self._get('/catalog/categories', params)
+        self.expect_policy_check('get_category')
+        result = req.get_response(self.api)
+        self.assertEqual(200, result.status_code)
+        result_categories = json.loads(result.body)['categories']
+        self.assertEqual(names, [c['name'] for c in result_categories])
+
+        names.reverse()
+
+        params = {'sort_dir': 'desc'}
+        req = self._get('/catalog/categories', params)
+        self.expect_policy_check('get_category')
+        result = req.get_response(self.api)
+        self.assertEqual(200, result.status_code)
+        result_categories = json.loads(result.body)['categories']
+        self.assertEqual(names, [c['name'] for c in result_categories])
+
+    def test_list_category_negative(self):
+        self._set_policy_rules({'get_category': '@'})
+        self.expect_policy_check('get_category')
+
+        req = self._get('/catalog/categories', {'sort_dir': 'test'})
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+
+        self.expect_policy_check('get_category')
+        req = self._get('/catalog/categories', {'sort_keys': 'test'})
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+
+        self.expect_policy_check('get_category')
+        req = self._get('/catalog/categories', {'test': ['test']})
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
