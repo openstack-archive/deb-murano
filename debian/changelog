@@ -1,10 +1,13 @@
-murano (1:1.0.0~b2-1) experimental; urgency=low
+murano (1:1.0.0~b3-1) experimental; urgency=low
 
-  * New upstream release.
-  * Update dependencies.
+  [ Ivan Udovichenko ]
   * Add myself to Uploaders field.
 
- -- Ivan Udovichenko <iudovichenko@mirantis.com>  Thu, 06 Aug 2015 12:28:00 +0300
+  [ Thomas Goirand ]
+  * New upstream release.
+  * Fixed (build-)depends for this release.
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 11 Sep 2015 11:32:15 +0200
 
 murano (1:1.0.0~b1-1) experimental; urgency=low
 
