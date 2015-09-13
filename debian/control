@@ -192,6 +192,23 @@ Description: cloud-ready application catalog - Engine server
  .
  This package contains the Engine server.
 
+Package: murano-cfapi
+Architecture: all
+Depends: adduser,
+         murano-common (= ${source:Version}),
+         ${misc:Depends},
+         ${python:Depends},
+Description: cloud-ready application catalog - Cloud Foundry broker
+ Murano Project introduces an application catalog, which allows application
+ developers and cloud administrators to publish various cloud-ready
+ applications in a browsable categorised catalog, which may be used by the
+ cloud users (including the inexperienced ones) to pick-up the needed
+ applications and services and composes the reliable environments out of them
+ in a "push-the-button" manner.
+ .
+ This package contains the Cloud Foundry Service Broker API. For more info,
+ see https://docs.cloudfoundry.org/services/api.html.
+
 Package: murano-doc
 Architecture: all
 Section: doc
