@@ -161,6 +161,7 @@ Depends: adduser,
          dbconfig-common,
          debconf,
          murano-common (= ${source:Version}),
+         python-openstackclient,
          ${misc:Depends},
          ${python:Depends},
 Description: cloud-ready application catalog - API server

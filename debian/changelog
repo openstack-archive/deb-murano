@@ -1,3 +1,9 @@
+murano (1:1.0.0~b3-3) UNRELEASED; urgency=medium
+
+  * Now murano-api depends on python-openstackclient.
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 21 Sep 2015 13:03:01 +0000
+
 murano (1:1.0.0~b3-2) experimental; urgency=medium
 
   * Added cfapi package.
