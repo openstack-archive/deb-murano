@@ -1,6 +1,8 @@
-murano (1:1.0.0~b3-3) UNRELEASED; urgency=medium
+murano (1:1.0.0~rc1-1) experimental; urgency=medium
 
+  * New upstream release.
   * Now murano-api depends on python-openstackclient.
+  * Fixed (build-)depends for this release.
 
  -- Thomas Goirand <zigo@debian.org>  Mon, 21 Sep 2015 13:03:01 +0000
 
