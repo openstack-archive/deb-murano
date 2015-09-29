@@ -1,3 +1,10 @@
+murano (1:1.0.0~rc1-2) experimental; urgency=medium
+
+  * Set http instead of https by default for the communication with keystone
+    through keystonemiddleware.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 29 Sep 2015 14:48:20 +0200
+
 murano (1:1.0.0~rc1-1) experimental; urgency=medium
 
   * New upstream release.
