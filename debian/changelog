@@ -1,3 +1,10 @@
+murano (1:1.0.0~rc1-3) UNRELEASED; urgency=medium
+
+  * Added Dutch translation of debconf messages thanks to Frans Spiesschaert
+    <Frans.Spiesschaert@yucom.be> (Closes: #794805).
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 07 Oct 2015 16:10:26 +0200
+
 murano (1:1.0.0~rc1-2) experimental; urgency=medium
 
   * Set http instead of https by default for the communication with keystone
