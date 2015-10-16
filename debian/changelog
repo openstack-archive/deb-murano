@@ -7,6 +7,7 @@ murano (1:1.0.0-1) UNRELEASED; urgency=medium
 
   [ Corey Bryant ]
   * New upstream release for OpenStack Liberty.
+  * d/control: Align dependencies with upstream.
 
  -- Corey Bryant <corey.bryant@canonical.com>  Fri, 16 Oct 2015 10:54:47 -0400
 
