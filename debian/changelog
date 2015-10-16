@@ -11,7 +11,7 @@ murano (1:1.0.1-1) unstable; urgency=medium
   * d/control: Align dependencies with upstream.
   * d/control: Update uploaders.
 
- -- Corey Bryant <corey.bryant@canonical.com>  Fri, 16 Oct 2015 10:54:47 -0400
+ -- Thomas Goirand <zigo@debian.org>  Fri, 16 Oct 2015 20:11:32 +0000
 
 murano (1:1.0.0~rc1-2) experimental; urgency=medium
 
