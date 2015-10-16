@@ -35,7 +35,6 @@ from murano.engine import client_manager
 from murano.engine import environment
 from murano.engine import package_loader
 
-
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 LOG.logger.setLevel(logging.DEBUG)
@@ -283,7 +282,7 @@ def main():
 
     try:
         if args.config_file:
-            default_config_files = [CONF.config_file]
+            default_config_files = [args.config_file]
         else:
             default_config_files = cfg.find_config_files('murano')
             if not default_config_files:

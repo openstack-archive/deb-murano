@@ -350,11 +350,90 @@ automatically created ``quick-env-1`` environment.
       :alt: Configure Application dialog: Add more applications
       :width: 630 px
 
-Deploy an application
+Deploy an environment
 ~~~~~~~~~~~~~~~~~~~~~
 
-Show an application topology
-----------------------------
+Make sure to add necessary applications to your environment, then deploy it
+following one of the options below:
+
+* Deploy an environment from the Environments page
+
+  #. In OpenStack dashboard, navigate to :menuselection:`Murano >
+     Application Catalog > Environments`.
+
+  #. Select :guilabel:`Deploy Environment` from the Actions drop-down list
+     next to the environment you want to deploy.
+
+     .. image:: figures/deploy_env_2.png
+        :width: 630 px
+        :alt: Environments page
+
+     It may take some time for the environment to deploy. Wait for the status to
+     change from `Deploying` to `Ready`.
+
+* Deploy an environment from the Environment Components page
+
+  #. In OpenStack dashboard, navigate to :menuselection:`Murano >
+     Application Catalog > Environments`.
+
+  #. Click the name of the environment you want to deploy.
+
+     .. image:: figures/environments.png
+        :width: 630 px
+        :alt: Environments page
+
+  #. On the Environment Components page, click :guilabel:`Deploy This Environment`
+     to start the deployment.
+
+     .. image:: figures/deploy_env.png
+        :width: 630 px
+        :alt: Environment Components page
+
+     It may take some time for the environment to deploy. Wait for the status to
+     change from `Deploying` to `Ready`. You can check the status either on the
+     Environments page or on the Environment Components page.
+
+Application topology
+--------------------
+
+Once you add an application to your environment, the application topology of
+this environment becomes available in a separate tab. The topology represents
+an elastic diagram showing the relationship between a component and the
+infrastructure it runs on. To view the topology:
+
+#. In OpenStack Dashboard, navigate to
+   :menuselection:`Murano > Application Catalog > Environments`.
+
+#. Click the name of the necessary environment.
+
+#. Click the :guilabel:`Topology` tab.
+
+The topology is helpful to visually display complex components, for example
+Kubernetes. The red icons reflect errors during the deployment while the green
+ones show success.
+
+.. image:: figures/topology_kubernetes.png
+   :alt: Topology tab: Deployment failed
+   :width: 630 px
+
+The following elements of the topology are virtual machine and an instance of
+dependent MuranoPL class:
+
++------------------------------------------+----------------------------+
+| Element                                  | Meaning                    |
++==========================================+============================+
+| .. image:: figures/topology_element_1.png| Virtual machine            |
++------------------------------------------+----------------------------+
+| .. image:: figures/topology_element_2.png| Instance                   |
++------------------------------------------+----------------------------+
+
+Position your mouse pointer over an element to see its name, ID, and other
+details.
+
+.. image:: figures/topology_wordpress.png
+   :alt: Topology tab: Deployment successful
+   :width: 630 px
+
 
 Show a deployment log location
 ------------------------------

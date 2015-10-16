@@ -1,3 +1,15 @@
+#  Licensed under the Apache License, Version 2.0 (the "License"); you may
+#  not use this file except in compliance with the License. You may obtain
+#  a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#  License for the specific language governing permissions and limitations
+#  under the License.
+
 Namespaces:
   =: io.murano.resources
   std: io.murano
@@ -192,6 +204,9 @@ Methods:
             assignFloatingIp => $assignFip,
             sharedIps => $sharedIps
           )
+      - $.setAttr(instanceResources, $.getAttr(instanceResources, []).concat($joinResult.get(instanceResources, [])))
+      - $.setAttr(instanceOutputs, $.getAttr(instanceOutputs, []).concat($joinResult.get(instanceOutputs, [])))
+
       - If: $joinResult.template != null
         Then:
           - $.instanceTemplate: $.instanceTemplate.mergeWith($joinResult.template)
@@ -218,17 +233,32 @@ Methods:
 
       - $._floatingIpOutputName: coalesce($._floatingIpOutputName, $joinResult.instanceFipOutput)
 
-  destroy:
-    # FIXME(smelikyan): All allocated resources should be cleaned-up on destroy
-    # Now no clean-up happens here cause we don't track all native resources
-    # that are allocated at the moment in descendants of Instance or other
-    # classes that may allocate resource dependent on OS::Nova:Server used
-    # as underlying implementation for Instance. This can cause
-    # resource leak when environment is updated. Resources are cleaned-up only
-    # when whole Environment is deleted (alongside with Heat stack deletion).
-    # https://bugs.launchpad.net/murano/+bug/1359998
+  releaseResources:
     Body:
-      - $.environment.instanceNotifier.untrackCloudInstance($this)
+      - $template: $.environment.stack.current()
+      - If: bool($template.resources) and bool($template.outputs)
+        Then:
+          - $resourcesToDelete: list($.name).concat($.getAttr(instanceResources, []))
+          - $lenBefore: len($template.resources)
+          - $template.resources: $template.resources.deleteAll($resourcesToDelete)
+          - If: $lenBefore > len($template.resources)
+            Then:
+              - $.environment.instanceNotifier.untrackCloudInstance($this)
+
+          - $outputsToDelete: list(
+              '{0}-assigned-ips'.format($.name),
+              '{0}-id'.format($.name)).concat($.getAttr(instanceOutputs, []))
+          - $template.outputs: $template.outputs.deleteAll($outputsToDelete)
+
+          - $.environment.stack.setTemplate($template)
+          - $.environment.stack.push()
+      - $.setAttr(instanceResources, [])
+      - $.setAttr(instanceOutputs, [])
+
+  destroy:
+    Body:
+      - $.releaseResources()
+
 
   createDefaultInstanceSecurityGroupRules:
     Arguments:
@@ -241,3 +271,8 @@ Methods:
         data: null
         # Valid values are HEAT_CFNTOOLS, RAW and SOFTWARE_CONFIG
         format: HEAT_CFNTOOLS
+
+  isDeployed:
+    Body:
+      - $template: $.environment.stack.current()
+      - Return: $template.resources != null and $.name in $template.resources
