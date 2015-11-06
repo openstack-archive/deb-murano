@@ -16,12 +16,12 @@ set -o xtrace
 
 # Set up default repos
 MURANO_REPO=${MURANO_REPO:-${GIT_BASE}/openstack/murano.git}
-MURANO_BRANCH=${MURANO_BRANCH:-master}
+MURANO_BRANCH=${MURANO_BRANCH:-stable/liberty}
 
 # Variables, which used in this function
 # https://github.com/openstack-dev/devstack/blob/master/functions-common#L500-L506
 GITREPO["python-muranoclient"]=${MURANO_PYTHONCLIENT_REPO:-${GIT_BASE}/openstack/python-muranoclient.git}
-GITBRANCH["python-muranoclient"]=${MURANO_PYTHONCLIENT_BRANCH:-master}
+GITBRANCH["python-muranoclient"]=${MURANO_PYTHONCLIENT_BRANCH:-stable/liberty}
 GITDIR["python-muranoclient"]=$DEST/python-muranoclient
 
 # Set up default directories
@@ -275,7 +275,7 @@ HORIZON_LOCAL_CONFIG=${HORIZON_LOCAL_CONFIG:-$HORIZON_DIR/openstack_dashboard/lo
 
 # Set up default repos
 MURANO_DASHBOARD_REPO=${MURANO_DASHBOARD_REPO:-${GIT_BASE}/openstack/murano-dashboard.git}
-MURANO_DASHBOARD_BRANCH=${MURANO_DASHBOARD_BRANCH:-master}
+MURANO_DASHBOARD_BRANCH=${MURANO_DASHBOARD_BRANCH:-stable/liberty}
 
 # Set up default directories
 MURANO_DASHBOARD_DIR=$DEST/murano-dashboard
@@ -283,7 +283,7 @@ MURANO_PYTHONCLIENT_DIR=$DEST/python-muranoclient
 
 MURANO_DASHBOARD_CACHE_DIR=${MURANO_DASHBOARD_CACHE_DIR:-/tmp/murano}
 
-MURANO_REPOSITORY_URL=${MURANO_REPOSITORY_URL:-'http://storage.apps.openstack.org/'}
+MURANO_REPOSITORY_URL=${MURANO_REPOSITORY_URL:-'http://apps.openstack.org/api/v1/murano_repo/liberty/'}
 
 # Functions
 # ---------
@@ -335,7 +335,12 @@ MURANO_REPO_URL = '$MURANO_REPOSITORY_URL'
 
 EOF
 
-    cat "$horizon_config_part" >> "$HORIZON_LOCAL_CONFIG"
+    # Insert changes into dashboard config before the line matching the pattern
+    insert_config_block "$HORIZON_CONFIG" "$horizon_config_part" "from openstack_dashboard import policy"
+
+    # Install Murano as plugin for Horizon
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
+}
 
     if [[ -f "$HORIZON_LOCAL_CONFIG" ]]; then
         sed -e "s/\(^\s*OPENSTACK_HOST\s*=\).*$/\1 '$HOST_IP'/" -i "$HORIZON_LOCAL_CONFIG"
