@@ -62,21 +62,21 @@ class TestExecutionPlan(base.MuranoTestCase):
             self._read('application.template'),
             Loader=self.yaml_loader)
         template = self.agent.build_execution_plan(template, self.resources)
-        self.assertEqual(self._get_application(), template)
+        self.assertEqual(template, self._get_application())
 
     def test_execution_plan_v2_chef_type(self):
         template = yamllib.load(
             self._read('chef.template'),
             Loader=self.yaml_loader)
         template = self.agent.build_execution_plan(template, self.resources)
-        self.assertEqual(self._get_chef(), template)
+        self.assertEqual(template, self._get_chef())
 
     def test_execution_plan_v2_telnet_application(self):
         template = yamllib.load(
             self._read('DeployTelnet.template'),
             Loader=self.yaml_loader)
         template = self.agent.build_execution_plan(template, self.resources)
-        self.assertEqual(self._get_telnet_application(), template)
+        self.assertEqual(template, self._get_telnet_application())
 
     def test_execution_plan_v2_tomcat_application(self):
         template = yamllib.load(
@@ -89,14 +89,14 @@ class TestExecutionPlan(base.MuranoTestCase):
             self._read('application_without_files.template'),
             Loader=self.yaml_loader)
         template = self.agent.build_execution_plan(template, self.resources)
-        self.assertEqual(self._get_app_without_files(), template)
+        self.assertEqual(template, self._get_app_without_files())
 
     def test_execution_plan_v2_app_with_file_in_template(self):
         template = yamllib.load(
             self._read('template_with_files.template'),
             Loader=self.yaml_loader)
         template = self.agent.build_execution_plan(template, self.resources)
-        self.assertEqual(self._get_app_with_files_in_template(), template)
+        self.assertEqual(template, self._get_app_with_files_in_template())
 
     def _get_application(self):
         return {

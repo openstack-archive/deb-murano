@@ -20,20 +20,6 @@ import sys
 
 import eventlet
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service import service
-
-from murano.api.v1 import request_statistics
-from murano.common import app_loader
-from murano.common import config
-from murano.common import policy
-from murano.common import server
-from murano.common import wsgi
-
-CONF = cfg.CONF
-
-
 if os.name == 'nt':
     # eventlet monkey patching causes subprocess.Popen to fail on Windows
     # when using pipes due to missing non blocking I/O support
@@ -46,6 +32,19 @@ else:
 root = os.path.join(os.path.abspath(__file__), os.pardir, os.pardir, os.pardir)
 if os.path.exists(os.path.join(root, 'murano', '__init__.py')):
     sys.path.insert(0, root)
+
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service import service
+
+from murano.api.v1 import request_statistics
+from murano.common import app_loader
+from murano.common import config
+from murano.common import policy
+from murano.common import server
+from murano.common import wsgi
+
+CONF = cfg.CONF
 
 
 def main():

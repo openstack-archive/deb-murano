@@ -17,7 +17,7 @@ The application package root folder should contain the following:
  contains MuranoPL class definitions.
 
 **Resources** folder
- contains execution plan templates and the **scripts**
+ contains an axecution plan template and the **scripts**
  folder with all the files required for an application
  deployment located in it.
 

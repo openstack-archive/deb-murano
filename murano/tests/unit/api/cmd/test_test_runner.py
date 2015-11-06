@@ -145,7 +145,7 @@ class TestCaseShell(testtools.TestCase):
 
     def test_package_is_not_provided(self):
         _, stderr = self.shell(exitcode=1)
-        self.assertIn('ERROR: Package name is required parameter.', stderr)
+        self.assertEqual(stderr, 'ERROR: Package name is required parameter.')
 
     def test_wrong_parent(self):
         _, stderr = self.shell(

@@ -25,6 +25,7 @@ from xml.dom import minidom
 from xml.parsers import expat
 
 import eventlet
+eventlet.patcher.monkey_patch(all=False, socket=True)
 import eventlet.wsgi
 import jsonschema
 from oslo_config import cfg
@@ -42,8 +43,6 @@ from murano.api.v1 import schemas
 from murano.common import exceptions
 from murano.common.i18n import _, _LE, _LW
 from murano.common import xmlutils
-
-eventlet.patcher.monkey_patch(all=False, socket=True)
 
 wsgi_opts = [
     cfg.IntOpt('backlog',
@@ -206,16 +205,16 @@ class Debug(Middleware):
 
     @webob.dec.wsgify
     def __call__(self, req):
-        print(("*" * 40) + " REQUEST ENVIRON")
+        print ("*" * 40) + " REQUEST ENVIRON"
         for key, value in req.environ.items():
             print(key, "=", value)
-        print("")
+        print
         resp = req.get_response(self.application)
 
-        print(("*" * 40) + " RESPONSE HEADERS")
+        print ("*" * 40) + " RESPONSE HEADERS"
         for (key, value) in resp.headers.iteritems():
             print(key, "=", value)
-        print("")
+        print
 
         resp.app_iter = self.print_generator(resp.app_iter)
 
@@ -226,12 +225,12 @@ class Debug(Middleware):
         """Iterator that prints the contents of a wrapper string iterator
         when iterated.
         """
-        print(("*" * 40) + " BODY")
+        print ("*" * 40) + " BODY"
         for part in app_iter:
             sys.stdout.write(part)
             sys.stdout.flush()
             yield part
-        print("")
+        print
 
 
 class Router(object):
@@ -650,20 +649,6 @@ class ResponseSerializer(object):
             return self.body_serializers[content_type]
         except (KeyError, TypeError):
             raise exceptions.UnsupportedContentType(content_type=content_type)
-
-
-class ServiceBrokerResponseSerializer(ResponseSerializer):
-    def __init__(self):
-        super(ServiceBrokerResponseSerializer, self).__init__()
-
-    def serialize(self, response_data, content_type, action='default'):
-        if isinstance(response_data, webob.Response):
-            response = response_data
-            self.serialize_body(response, response.data, content_type, action)
-        else:
-            response = super(ServiceBrokerResponseSerializer, self).serialize(
-                response_data, content_type, action='default')
-        return response
 
 
 class RequestHeadersDeserializer(ActionDispatcher):

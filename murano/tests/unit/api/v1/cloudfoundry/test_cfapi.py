@@ -16,7 +16,6 @@ import base64
 
 import json
 import mock
-from webob import response
 
 from murano.api.v1.cloudfoundry import cfapi as api
 from murano.tests.unit import base
@@ -83,7 +82,7 @@ class TestController(base.MuranoTestCase):
 
         resp = self.controller.provision(self.request, {}, '111-111')
 
-        self.assertIsInstance(resp, response.Response)
+        self.assertEqual({}, resp)
 
     @mock.patch('murano.common.policy.check_is_admin')
     @mock.patch('murano.db.catalog.api.package_get')
@@ -113,7 +112,7 @@ class TestController(base.MuranoTestCase):
 
         resp = self.controller.provision(self.request, {}, '111-111')
 
-        self.assertIsInstance(resp, response.Response)
+        self.assertEqual({}, resp)
 
     @mock.patch('murano.api.v1.cloudfoundry.cfapi.muranoclient')
     @mock.patch('murano.api.v1.cloudfoundry.auth.authenticate')
@@ -127,7 +126,7 @@ class TestController(base.MuranoTestCase):
 
         resp = self.controller.deprovision(self.request, '555-555')
 
-        self.assertIsInstance(resp, response.Response)
+        self.assertEqual({}, resp)
 
     @mock.patch('murano.api.v1.cloudfoundry.cfapi.muranoclient')
     @mock.patch('murano.db.services.cf_connections.get_service_for_instance')

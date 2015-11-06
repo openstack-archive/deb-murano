@@ -62,4 +62,4 @@ class TestEnvironmentServices(base.MuranoWithDBTestCase):
             environment.id
         )
 
-        self.assertEqual(expected_status, actual_status)
+        self.assertEqual(actual_status, expected_status)

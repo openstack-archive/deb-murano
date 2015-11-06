@@ -28,9 +28,7 @@ from murano.common import wsgi
 from murano.db import models
 from murano.db.services import core_services
 from murano.db.services import environments as envs
-from murano.db.services import sessions as session_services
 from murano.db import session as db_session
-from murano.services import states
 from murano.utils import check_env
 from murano.utils import check_session
 from murano.utils import verify_env
@@ -87,7 +85,7 @@ class Controller(object):
                 LOG.exception(msg)
                 raise exc.HTTPConflict(explanation=msg)
         else:
-            msg = _('Environment name must contain only alphanumeric or "_-." '
+            msg = _('Environment name must contain only alphanumericor "_-." '
                     'characters, must start with alpha')
             LOG.exception(msg)
             raise exc.HTTPClientError(explanation=msg)
@@ -105,15 +103,6 @@ class Controller(object):
         environment = session.query(models.Environment).get(environment_id)
         env = environment.to_dict()
         env['status'] = envs.EnvironmentServices.get_status(env['id'])
-
-        # if env is currently being deployed we can provide information about
-        # the session right away
-        env['acquired_by'] = None
-        if env['status'] == states.EnvironmentStatus.DEPLOYING:
-            session_list = session_services.SessionServices.get_sessions(
-                environment_id, state=states.SessionState.DEPLOYING)
-            if session_list:
-                env['acquired_by'] = session_list[0].id
 
         session_id = None
         if hasattr(request, 'context') and request.context.session:

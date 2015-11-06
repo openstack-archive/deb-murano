@@ -30,10 +30,6 @@ class MuranoDeploymentTest(core.MuranoTestsCore):
                        'UpdateExecutor',
                        {"categories": ["Web"], "tags": ["tag"]})
 
-        cls.upload_app('io.murano.apps.test.Lighttpd',
-                       'Lighttpd',
-                       {"categories": ["Web"], "tags": ["tag"]})
-
     @classmethod
     def tearDownClass(cls):
         super(MuranoDeploymentTest, cls).tearDownClass()
