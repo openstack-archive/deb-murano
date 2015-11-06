@@ -6,6 +6,7 @@ murano (1:1.0.1-1) unstable; urgency=medium
     <Frans.Spiesschaert@yucom.be> (Closes: #794805).
   * Added python-pymysql as runtime dependency.
   * Added missing namespaces when generating the murano.conf.
+  * Setting-up rabbit config using the [oslo_messaging_rabbit] section.
 
   [ Corey Bryant ]
   * New upstream release for OpenStack Liberty.
