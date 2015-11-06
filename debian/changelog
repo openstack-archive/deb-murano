@@ -5,6 +5,7 @@ murano (1:1.0.1-1) unstable; urgency=medium
   * Added Dutch translation of debconf messages thanks to Frans Spiesschaert
     <Frans.Spiesschaert@yucom.be> (Closes: #794805).
   * Added python-pymysql as runtime dependency.
+  * Added missing namespaces when generating the murano.conf.
 
   [ Corey Bryant ]
   * New upstream release for OpenStack Liberty.

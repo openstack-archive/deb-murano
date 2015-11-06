@@ -52,9 +52,11 @@ override_dh_install:
 		--namespace keystonemiddleware.auth_token \
 		--namespace murano \
 		--namespace oslo.db \
-		--namespace oslo.messaging
+		--namespace oslo.log \
+		--namespace oslo.messaging \
+		--namespace oslo.policy \
+		--namespace oslo.service.service
 	sed -i 's/^[ \t#]*auth_protocol[ \t]*=[ \t].*/auth_protocol = http/' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
-
 	sed -i 's|^[# \t]*notification_driver[ \t]*=.*|notification_driver=messagingv2|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 
