@@ -74,7 +74,7 @@ override_dh_install:
 	# Note that this is done in a reproducible way, adjusting timestamps
 	# before zipping the files.
 	find meta/io.murano -newermt '$(BUILD_DATE)' -print0 | xargs -0r touch --no-dereference --date='$(BUILD_DATE)'
-	cd meta/io.murano ; TZ=UTC zip -r ../../debian/murano-common/usr/share/murano-common/io.murano.zip * ; cd ..
+	cd meta/io.murano ; TZ=UTC zip -r ../../debian/murano-common/usr/share/murano-common/io.murano.zip * ; cd ../..
 
 override_dh_clean:
 	rm -rf 	build \
