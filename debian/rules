@@ -5,12 +5,12 @@ PYTHON3S:=$(shell py3versions -vr)
 
 UPSTREAM_GIT = git://github.com/stackforge/murano.git
 
-LAST_CHANGE=$(shell dpkg-parsechangelog -S Date)
+LAST_CHANGE=$(shell dpkg-parsechangelog  | grep Date: | cut -d' ' -f2)
 BUILD_DATE=$(shell LC_ALL=C date -u "+%B %d, %Y" -d "$(LAST_CHANGE)")
 SPHINXOPTS := -D html_last_updated_fmt="$(BUILD_DATE)"
 
 include /usr/share/openstack-pkg-tools/pkgos.make
-export OSLO_PACKAGE_VERSION=$(shell dpkg-parsechangelog -S Version | sed -e 's/^[[:digit:]]*://' -e 's/[-].*//' -e 's/~/.0/')
+export OSLO_PACKAGE_VERSION=$(shell dpkg-parsechangelog | grep Version: | cut -d' ' -f2 | sed -e 's/^[[:digit:]]*://' -e 's/[-].*//' -e 's/~/.0/')
 
 %:
 	dh $@ --buildsystem=python_distutils --with python2,sphinxdoc,systemd
@@ -69,6 +69,12 @@ override_dh_install:
 	set -e ; for pyvers in $(PYTHONS); do \
 		cp -rfv $(CURDIR)/murano/db/migration/alembic_migrations $(CURDIR)/debian/python-murano/usr/lib/python$$pyvers/dist-packages/murano/db/migration/ ; \
 	done
+
+	# Zip the murano core-library and push it in the package.
+	# Note that this is done in a reproducible way, adjusting timestamps
+	# before zipping the files.
+	find meta/io.murano -newermt '$(BUILD_DATE)' -print0 | xargs -0r touch --no-dereference --date='$(BUILD_DATE)'
+	cd meta/io.murano ; TZ=UTC zip -r ../../debian/murano-common/usr/share/murano-common/io.murano.zip * ; cd ..
 
 override_dh_clean:
 	rm -rf 	build \
