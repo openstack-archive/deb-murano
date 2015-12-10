@@ -350,7 +350,7 @@ automatically created ``quick-env-1`` environment.
       :alt: Configure Application dialog: Add more applications
       :width: 630 px
 
-Deploy an application
+Deploy an environment
 ~~~~~~~~~~~~~~~~~~~~~
 
 Make sure to add necessary applications to your environment, then deploy it

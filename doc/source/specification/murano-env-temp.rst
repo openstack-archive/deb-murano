@@ -112,7 +112,7 @@ Create environment template
 | Attribute            | Type       | Description                                             |
 +======================+============+=========================================================+
 | name                 | string     | Environment template name; only alphanumeric characters |
-|                      | and '-' |                                                         |
+|                      | and '-'    |                                                         |
 +----------------------+------------+---------------------------------------------------------+
 
 *Request*
@@ -163,7 +163,7 @@ environment template.
 +----------+--------------------------------+-------------------------------------------------+
 | Method   | URI                            | Description                                     |
 +==========+================================+=================================================+
-| GET      | /templates/{env-temp-id}       | Obtains the environment template information     |
+| GET      | /templates/{env-temp-id}       | Obtains the environment template information    |
 +----------+--------------------------------+-------------------------------------------------+
 
 * `env-temp-id` - environment template ID, required

@@ -12,6 +12,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import uuid
+
 from nose.plugins.attrib import attr as tag
 
 import murano.tests.functional.engine.manager as core

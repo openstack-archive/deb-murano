@@ -49,8 +49,8 @@ class MuranoMethod(dsl_types.MuranoMethod):
             self._usage = (self._body.meta.get('usage') or
                            self._body.meta.get('Usage') or
                            MethodUsages.Runtime)
-            if (self._body.name.startswith('#')
-                    or self._body.name.startswith('*')):
+            if (self._body.name.startswith('#') or
+                    self._body.name.startswith('*')):
                 raise ValueError(
                     'Import of special yaql functions is forbidden')
         else:

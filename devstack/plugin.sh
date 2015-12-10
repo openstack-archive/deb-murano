@@ -102,6 +102,10 @@ function configure_murano_networking {
     if [[ -n "$MURANO_DEFAULT_ROUTER" ]]; then
         iniset $MURANO_CONF_FILE networking router_name $MURANO_DEFAULT_ROUTER
     fi
+
+    if [[ -n "$MURANO_DEFAULT_DNS" ]]; then
+        iniset $MURANO_CONF_FILE networking default_dns $MURANO_DEFAULT_DNS
+    fi
 }
 
 # Entry points
@@ -311,7 +315,7 @@ HORIZON_LOCAL_CONFIG=${HORIZON_LOCAL_CONFIG:-$HORIZON_DIR/openstack_dashboard/lo
 
 # Set up default repos
 MURANO_DASHBOARD_REPO=${MURANO_DASHBOARD_REPO:-${GIT_BASE}/openstack/murano-dashboard.git}
-MURANO_DASHBOARD_BRANCH=${MURANO_DASHBOARD_BRANCH:-stable/liberty}
+MURANO_DASHBOARD_BRANCH=${MURANO_DASHBOARD_BRANCH:-master}
 
 # Set up default directories
 MURANO_DASHBOARD_DIR=$DEST/murano-dashboard
@@ -323,19 +327,6 @@ MURANO_REPOSITORY_URL=${MURANO_REPOSITORY_URL:-'http://apps.openstack.org/api/v1
 
 # Functions
 # ---------
-
-function insert_config_block() {
-    local target_file="$1"
-    local insert_file="$2"
-    local pattern="$3"
-
-    if [[ -z "$pattern" ]]; then
-        cat "$insert_file" >> "$target_file"
-    else
-        sed -ne "/$pattern/r  $insert_file" -e 1x  -e '2,${x;p}' -e '${x;p}' -i "$target_file"
-    fi
-}
-
 
 function remove_config_block() {
     local config_file="$1"
@@ -354,14 +345,13 @@ function remove_config_block() {
 function configure_murano_dashboard() {
     remove_config_block "$HORIZON_CONFIG" "MURANO_CONFIG_SECTION"
 
-    configure_settings_py
     configure_local_settings_py
 
     restart_apache_server
 }
 
 
-function configure_settings_py() {
+function configure_local_settings_py() {
     local horizon_config_part=$(mktemp)
 
     mkdir_chown_stack "$MURANO_DASHBOARD_CACHE_DIR"
@@ -379,22 +369,14 @@ DATABASES = {
     }
 }
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-MIDDLEWARE_CLASSES += ('muranodashboard.middleware.ExceptionMiddleware',)
 MURANO_REPO_URL = '$MURANO_REPOSITORY_URL'
 #-------------------------------------------------------------------------------
 #MURANO_CONFIG_SECTION_END
 
 EOF
 
-    # Insert changes into dashboard config before the line matching the pattern
-    insert_config_block "$HORIZON_CONFIG" "$horizon_config_part" "from openstack_dashboard import policy"
+    cat "$horizon_config_part" >> "$HORIZON_LOCAL_CONFIG"
 
-    # Install Murano as plugin for Horizon
-    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
-}
-
-
-function configure_local_settings_py() {
     if [[ -f "$HORIZON_LOCAL_CONFIG" ]]; then
         sed -e "s/\(^\s*OPENSTACK_HOST\s*=\).*$/\1 '$HOST_IP'/" -i "$HORIZON_LOCAL_CONFIG"
     fi
@@ -402,7 +384,6 @@ function configure_local_settings_py() {
     # Install Murano as plugin for Horizon
     ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
 }
-
 
 # init_murano_dashboard() - Initialize databases, etc.
 function init_murano_dashboard() {
@@ -413,7 +394,7 @@ function init_murano_dashboard() {
 
     python "$horizon_manage_py" collectstatic --noinput
     python "$horizon_manage_py" compress --force
-    python "$horizon_manage_py" syncdb --noinput
+    python "$horizon_manage_py" migrate --noinput
 
     restart_apache_server
 }
@@ -490,4 +471,3 @@ fi
 
 # Restore xtrace
 $XTRACE
-
