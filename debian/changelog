@@ -1,3 +1,9 @@
+murano (1:2.0.0~b1-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 10 Dec 2015 21:13:19 +0100
+
 murano (1:1.0.1-2) unstable; urgency=medium
 
   * Zip the murano core-library and make it available.
