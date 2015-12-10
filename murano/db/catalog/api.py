@@ -238,12 +238,13 @@ def package_update(pkg_id_or_name, changes, context):
         class_names = [clazz.name for clazz in pkg.class_definitions]
         if was_private and became_public:
             with db_session.get_lock("public_packages", session):
-                _check_for_existing_classes(session, class_names, None,
-                                            check_public=True,
-                                            ignore_package_with_id=pkg.id)
                 _check_for_public_packages_with_fqn(session,
                                                     pkg.fully_qualified_name,
                                                     pkg.id)
+                _check_for_existing_classes(session, class_names, None,
+                                            check_public=True,
+                                            ignore_package_with_id=pkg.id)
+
         session.add(pkg)
     return pkg
 
@@ -400,8 +401,8 @@ def package_delete(package_id, context):
         package = _package_get(package_id, session)
         if not context.is_admin and package.owner_id != context.tenant:
             raise exc.HTTPForbidden(
-                explanation='Package is not owned by the'
-                            ' tenant "{0}"'.format(context.tenant))
+                explanation="Package is not owned by the"
+                            " tenant '{0}'".format(context.tenant))
         session.delete(package)
 
 

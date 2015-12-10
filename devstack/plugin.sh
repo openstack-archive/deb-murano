@@ -11,47 +11,6 @@ XTRACE=$(set +o | grep xtrace)
 set -o xtrace
 
 
-# Defaults
-# --------
-
-# Set up default repos
-MURANO_REPO=${MURANO_REPO:-${GIT_BASE}/openstack/murano.git}
-MURANO_BRANCH=${MURANO_BRANCH:-stable/liberty}
-
-# Variables, which used in this function
-# https://github.com/openstack-dev/devstack/blob/master/functions-common#L500-L506
-GITREPO["python-muranoclient"]=${MURANO_PYTHONCLIENT_REPO:-${GIT_BASE}/openstack/python-muranoclient.git}
-GITBRANCH["python-muranoclient"]=${MURANO_PYTHONCLIENT_BRANCH:-stable/liberty}
-GITDIR["python-muranoclient"]=$DEST/python-muranoclient
-
-# Set up default directories
-MURANO_DIR=$DEST/murano
-MURANO_CONF_DIR=${MURANO_CONF_DIR:-/etc/murano}
-MURANO_CONF_FILE=${MURANO_CONF_DIR}/murano.conf
-MURANO_POLICY_FILE=${MURANO_CONF_DIR}/policy.json
-MURANO_DEBUG=${MURANO_DEBUG:-True}
-MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT=${MURANO_ENABLE_MODEL_POLICY_ENFORCEMENT:-False}
-
-MURANO_SERVICE_HOST=${MURANO_SERVICE_HOST:-$SERVICE_HOST}
-MURANO_SERVICE_PORT=${MURANO_SERVICE_PORT:-8082}
-MURANO_SERVICE_PROTOCOL=${MURANO_SERVICE_PROTOCOL:-$SERVICE_PROTOCOL}
-
-MURANO_ADMIN_USER=${MURANO_ADMIN_USER:-murano}
-
-MURANO_KEYSTONE_SIGNING_DIR=${MURANO_KEYSTONE_SIGNING_DIR:-/tmp/keystone-signing-muranoapi}
-
-MURANO_DEFAULT_ROUTER=${MURANO_DEFAULT_ROUTER:-''}
-MURANO_EXTERNAL_NETWORK=${MURANO_EXTERNAL_NETWORK:-''}
-
-# MURANO_RABBIT_VHOST allows to specify a separate virtual host for Murano services.
-# This is not required if all OpenStack services are deployed by devstack scripts
-#   on a single node. In this case '/' virtual host (which is the default) is enough.
-# The problem arise when Murano installed in 'devbox' mode, allowing two or more
-#   devboxes to use one common OpenStack host. In this case it's better devboxes
-#   use separated virtual hosts, to avoid conflicts between Murano services.
-# This couldn't be done using exitsting variables, so that's why this variable was added.
-MURANO_RABBIT_VHOST=${MURANO_RABBIT_VHOST:-''}
-
 # Support entry points installation of console scripts
 if [[ -d $MURANO_DIR/bin ]]; then
     MURANO_BIN_DIR=$MURANO_DIR/bin
@@ -73,12 +32,21 @@ function create_murano_accounts() {
     create_service_user "murano"
 
     if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
-        get_or_create_service "murano" "application_catalog" "Application Catalog Service"
-        get_or_create_endpoint "application_catalog" \
+        get_or_create_service "murano" "application-catalog" "Application Catalog Service"
+        get_or_create_endpoint "application-catalog" \
             "$REGION_NAME" \
             "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
             "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
             "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT"
+
+        if is_service_enabled murano-cfapi; then
+        get_or_create_service "murano-cfapi" "service-broker" "Murano CloudFoundry Service Broker"
+        get_or_create_endpoint "service-broker" \
+            "$REGION_NAME" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
+            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT"
+        fi
     fi
 }
 
@@ -190,6 +158,47 @@ function configure_murano {
     iniset $MURANO_CONF_FILE murano url "http://127.0.0.1:8082"
 }
 
+# install_murano_apps() - Install Murano apps from repository murano-apps, if required
+function install_murano_apps() {
+    if [[ -z $MURANO_APPS ]]; then
+        return
+    fi
+
+    # clone murano-apps only if app installation is required
+    git_clone $MURANO_APPS_REPO $MURANO_APPS_DIR $MURANO_APPS_BRANCH
+
+    # install Murano apps defined in the comma-separated list $MURANO_APPS
+    for murano_app in ${MURANO_APPS//,/ }; do
+        find $MURANO_APPS_DIR -type d -name "package" | while read package; do
+            full_name=$(grep "FullName" "$package/manifest.yaml" | awk -F ':' '{print $2}' | tr -d ' ')
+            if [[ $full_name = $murano_app ]]; then
+                pushd $package
+                zip -r app.zip .
+                murano --os-username $OS_USERNAME \
+                       --os-password $OS_PASSWORD \
+                       --os-tenant-name $OS_PROJECT_NAME \
+                       --os-auth-url http://$KEYSTONE_AUTH_HOST:5000/v2.0 \
+                       --murano-url http://127.0.0.1:8082 \
+                       package-import \
+                       --is-public \
+                       --exists-action u \
+                       app.zip
+                popd
+            fi
+      done
+    done
+}
+
+
+# configure_service_broker() - set service broker specific options to config
+function configure_service_broker {
+    #Add needed options to murano.conf
+    iniset $MURANO_CONF_FILE cfapi tenant "$MURANO_CFAPI_DEFAULT_TENANT"
+    iniset $MURANO_CONF_FILE cfapi bind_host "$MURANO_SERVICE_HOST"
+    iniset $MURANO_CONF_FILE cfapi bind_port "$MURANO_CFAPI_SERVICE_PORT"
+    iniset $MURANO_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000/v2.0"
+}
+
 
 # init_murano() - Initialize databases, etc.
 function init_murano() {
@@ -240,10 +249,42 @@ function stop_murano() {
     screen -S $SCREEN_NAME -p murano-engine -X kill
 }
 
+
+# start_service_broker() - start murano CF service broker
+function start_service_broker() {
+    screen_it murano-cfapi "cd $MURANO_DIR && $MURANO_BIN_DIR/murano-cfapi --config-file $MURANO_CONF_DIR/murano.conf"
+}
+
+
+# stop_service_broker() - stop murano CF service broker
+function stop_service_broker() {
+    # Kill the Murano screen windows
+    screen -S $SCREEN_NAME -p murano-cfapi -X kill
+}
+
+
 function cleanup_murano() {
 
     # Cleanup keystone signing dir
     sudo rm -rf $MURANO_KEYSTONE_SIGNING_DIR
+}
+
+function configure_murano_tempest_plugin() {
+
+    # Check tempest for enabling
+    if is_service_enabled tempest; then
+        echo_summary "Configuring Murano Tempest plugin"
+        # Set murano service availability flag
+        iniset $TEMPEST_CONFIG service_available murano "True"
+        # Running tempest in isolation will using tempest user.
+        if sudo id -u tempest >/dev/null 2>&1; then
+            sudo chown -R tempest:stack $MURANO_DIR/murano_tempest_tests
+        fi
+        if is_service_enabled murano-cfapi; then
+            # Enable Service Broker tests if cfapi enabled
+            iniset $TEMPEST_CONFIG service_broker run_service_broker_tests "True"
+        fi
+    fi
 }
 
 #### lib/murano-dashboard
@@ -357,6 +398,9 @@ function configure_local_settings_py() {
     if [[ -f "$HORIZON_LOCAL_CONFIG" ]]; then
         sed -e "s/\(^\s*OPENSTACK_HOST\s*=\).*$/\1 '$HOST_IP'/" -i "$HORIZON_LOCAL_CONFIG"
     fi
+
+    # Install Murano as plugin for Horizon
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
 }
 
 
@@ -396,20 +440,7 @@ function cleanup_murano_dashboard() {
 # Main dispatcher
 
 if is_service_enabled murano; then
-    if [[ "$1" == "source" ]]; then
-        # Initial source
-        source $TOP_DIR/lib/murano
-        if is_service_enabled horizon; then
-            source $TOP_DIR/lib/murano-dashboard
-        fi
-    elif [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
-        echo_summary "Configuring Murano pre-requisites"
-        if is_service_enabled n-net; then
-            disable_service n-net
-            enable_service q-svc q-agt q-dhcp q-l3 q-meta q-metering
-        fi
-        enable_service heat h-api h-api-cfn h-api-cw h-eng
-    elif [[ "$1" == "stack" && "$2" == "install" ]]; then
+    if [[ "$1" == "stack" && "$2" == "install" ]]; then
         echo_summary "Installing Murano"
         install_murano
         if is_service_enabled horizon; then
@@ -422,6 +453,9 @@ if is_service_enabled murano; then
         if is_service_enabled horizon; then
             configure_murano_dashboard
         fi
+        if is_service_enabled murano-cfapi; then
+            configure_service_broker
+        fi
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         echo_summary "Initializing Murano"
         init_murano
@@ -429,10 +463,24 @@ if is_service_enabled murano; then
             init_murano_dashboard
         fi
         start_murano
+        if is_service_enabled murano-cfapi; then
+            start_service_broker
+        fi
+
+        configure_murano_tempest_plugin
+
+        # Give Murano some time to Start
+        sleep 3
+
+        # Install Murano apps, if needed
+        install_murano_apps
     fi
 
     if [[ "$1" == "unstack" ]]; then
         stop_murano
+        if is_service_enabled murano-cfapi; then
+            stop_service_broker
+        fi
         cleanup_murano
         if is_service_enabled horizon; then
             cleanup_murano_dashboard

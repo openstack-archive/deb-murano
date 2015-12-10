@@ -108,7 +108,8 @@ class Service(service.Service):
                 eventlet.sleep(0.1)
         if not sock:
             raise RuntimeError(_("Could not bind to %(host)s:%(port)s "
-                                 "after trying for 30 seconds") %
+                                 "after trying for 30 seconds: Address"
+                                 " already in use.") %
                                {'host': host, 'port': port})
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # sockets can hang around forever without keepalive
@@ -400,6 +401,11 @@ class Resource(object):
     def __call__(self, request):
         """WSGI method that controls (de)serialization and method dispatch."""
 
+        LOG.debug("{method} {url}\nHEADERS: {headers}".format(
+                  method=request.method,
+                  url=request.url,
+                  headers=self._format_request_headers(request.headers)))
+
         try:
             action, action_args, accept = self.deserialize_request(request)
         except exceptions.UnsupportedContentType:
@@ -454,6 +460,28 @@ class Resource(object):
             pass
 
         return args
+
+    def _format_request_headers(self, headers):
+        """Format the request headers to be logged.
+
+        To keep log more clear, only show the X-* header include murano own
+        header and several useful headers added by keystone auth middleware,
+        and skip other X-* headers.
+        """
+        string_parts = []
+
+        # Only show following X-* header
+        useful_headers = ("X-Configuration-Session",
+                          "X-Roles",
+                          "X-User-Id",
+                          "X-Tenant-Id")
+
+        for header, value in headers.iteritems():
+            if header.startswith("X-") and header not in useful_headers:
+                continue
+            string_parts.append("{0}: {1}".format(header, value))
+
+        return ', '.join(string_parts)
 
 
 class ActionDispatcher(object):

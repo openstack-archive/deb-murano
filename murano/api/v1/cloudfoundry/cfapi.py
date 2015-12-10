@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import base64
 import json
 import uuid
 
@@ -20,12 +19,10 @@ import muranoclient.client as client
 from oslo_config import cfg
 from oslo_log import log as logging
 import six
-from webob import exc
+from webob import response
 
-from murano.api.v1.cloudfoundry import auth as keystone_auth
 from murano.common.i18n import _LI, _LW
 from murano.common import wsgi
-from murano import context
 from murano.db.catalog import api as db_api
 from murano.db.services import cf_connections as db_cf
 
@@ -63,21 +60,6 @@ class Controller(object):
         srv['plans'] = [plan]
         return srv
 
-    def _check_auth(self, req, tenant=None):
-        auth = req.headers.get('Authorization', None)
-        if auth is None:
-            raise exc.HTTPUnauthorized(explanation='Bad credentials')
-
-        auth_info = auth.split(' ')[1]
-        auth_decoded = base64.b64decode(auth_info)
-        user = auth_decoded.split(':')[0]
-        password = auth_decoded.split(':')[1]
-        if tenant:
-            keystone = keystone_auth.authenticate(user, password, tenant)
-        else:
-            keystone = keystone_auth.authenticate(user, password)
-        return (user, password, keystone)
-
     def _make_service(self, name, package, plan_id):
         id = uuid.uuid4().hex
 
@@ -93,13 +75,9 @@ class Controller(object):
         return None
 
     def list(self, req):
-        user, _, keystone = self._check_auth(req)
-        # Once we get here we were authorized by keystone
-        token = keystone.auth_token
 
-        ctx = context.RequestContext(user=user, tenant='', auth_token=token)
-
-        packages = db_api.package_search({'type': 'application'}, ctx,
+        packages = db_api.package_search({'type': 'application'},
+                                         req.context,
                                          catalog=True)
         services = []
         for package in packages:
@@ -134,19 +112,13 @@ class Controller(object):
         try:
             tenant = db_cf.get_tenant_for_org(org_guid)
         except AttributeError:
-            # FIXME(Kezar): need to find better way to get tenant
-            tenant = CONF.cfapi.tenant
+            tenant = req.headers['X-Project-Id']
             db_cf.set_tenant_for_org(org_guid, tenant)
             LOG.info(_LI("Cloud Foundry {org_id} mapped to tenant "
                          "{tenant_name}").format(org_id=org_guid,
                                                  tenant_name=tenant))
 
-        # Now as we have all parameters we can try to auth user in actual
-        # tenant
-
-        user, _, keystone = self._check_auth(req, tenant)
-        # Once we get here we were authorized by keystone
-        token = keystone.auth_token
+        token = req.headers['X-Auth-Token']
         m_cli = muranoclient(token)
         try:
             environment_id = db_cf.get_environment_for_space(space_guid)
@@ -159,18 +131,22 @@ class Controller(object):
                      .format(space_id=space_guid,
                              environment_id=environment_id))
 
-        LOG.debug('Keystone endpoint: {0}'.format(keystone.auth_ref))
-        tenant_id = keystone.project_id
-        ctx = context.RequestContext(user=user, tenant=tenant_id)
-
-        package = db_api.package_get(service_id, ctx)
+        package = db_api.package_get(service_id, req.context)
         LOG.debug('Adding service {name}'.format(name=package.name))
 
         service = self._make_service(space_guid, package, plan_id)
         db_cf.set_instance_for_service(instance_id, service['?']['id'],
                                        environment_id, tenant)
+
         # NOTE(Kezar): Here we are going through JSON and add ids where
-        # it's necessary
+        # it's necessary. Before that we need to drop '?' key from parameters
+        # dictionary as far it contains murano package related info which is
+        # necessary in our scenario
+        if '?' in parameters.keys():
+            parameters.pop('?', None)
+            LOG.warning(_LW("Incorrect input parameters. Package related "
+                            "parameters shouldn't be passed through Cloud "
+                            "Foundry"))
         params = [parameters]
         while params:
             a = params.pop()
@@ -197,10 +173,7 @@ class Controller(object):
 
         service_id = service.service_id
         environment_id = service.environment_id
-        tenant = service.tenant
-        _, _, keystone = self._check_auth(req, tenant)
-        # Once we get here we were authorized by keystone
-        token = keystone.auth_token
+        token = req.headers['X-Auth-Token']
         m_cli = muranoclient(token)
 
         try:
@@ -226,10 +199,7 @@ class Controller(object):
 
         service_id = db_service.service_id
         environment_id = db_service.environment_id
-        tenant = db_service.tenant
-        _, _, keystone = self._check_auth(req, tenant)
-        # Once we get here we were authorized by keystone
-        token = keystone.auth_token
+        token = req.headers['X-Auth-Token']
         m_cli = muranoclient(token)
 
         session_id = create_session(m_cli, environment_id)
@@ -256,8 +226,18 @@ class Controller(object):
 
         return {}
 
-    def get_last_operation(self):
-        """Not implemented functionality
+    def get_last_operation(self, req, instance_id):
+        service = db_cf.get_service_for_instance(instance_id)
+        # NOTE(freerunner): Prevent code 500 if requested environment
+        # already doesn't exist.
+        if not service:
+            LOG.warning(_LW('Requested service for instance {} is not found'))
+            body = {}
+            resp = response.Response(status=410, json_body=body)
+            return resp
+        env_id = service.environment_id
+        token = req.headers["X-Auth-Token"]
+        m_cli = muranoclient(token)
 
         For some reason it's difficult to provide a valid JSON with the
         response code which is needed for our broker to be true asynchronous.
@@ -268,6 +248,7 @@ class Controller(object):
 
 
 def muranoclient(token_id):
+    # TODO(starodubcevna): I guess it can be done better.
     endpoint = "http://{murano_host}:{murano_port}".format(
         murano_host=CONF.bind_host, murano_port=CONF.bind_port)
     insecure = False

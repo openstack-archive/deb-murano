@@ -15,7 +15,6 @@
 import os
 import shutil
 import sys
-import types
 
 import yaml
 
@@ -32,7 +31,7 @@ class YAQL(object):
         self.expr = expr
 
 
-class Dumper(yaml.Dumper):
+class Dumper(yaml.SafeDumper):
     pass
 
 
@@ -44,10 +43,10 @@ Dumper.add_representer(YAQL, yaql_representer)
 
 
 class HotPackage(package_base.PackageBase):
-    def __init__(self, source_directory, manifest,
-                 package_format, runtime_version):
+    def __init__(self, format_name, runtime_version, source_directory,
+                 manifest):
         super(HotPackage, self).__init__(
-            source_directory, manifest, package_format, runtime_version)
+            format_name, runtime_version, source_directory, manifest)
 
         self._translated_class = None
         self._source_directory = source_directory
@@ -107,7 +106,12 @@ class HotPackage(package_base.PackageBase):
 
         files = HotPackage._translate_files(self._source_directory)
         translated.update(HotPackage._generate_workflow(hot, files))
-        self._translated_class = yaml.dump(translated, Dumper=Dumper)
+
+        # use default_style with double quote mark because by default PyYAML
+        # doesn't put any quote marks ans as a result strings with e.g. dashes
+        # may be interpreted as YAQL expressions upon load
+        self._translated_class = yaml.dump(
+            translated, Dumper=Dumper, default_style='"')
 
     @staticmethod
     def _build_properties(hot, validate_hot_parameters):
@@ -171,13 +175,16 @@ class HotPackage(package_base.PackageBase):
 
     @staticmethod
     def _translate_outputs(hot):
-        result = {}
-        for key in (hot.get('outputs') or {}).keys():
-            result[key] = {
-                "Contract": YAQL("$.string()"),
-                "Usage": "Out"
+        contract = {}
+        for key in (hot.get('outputs') or {}).iterkeys():
+            contract[key] = YAQL("$.string()")
+        return {
+            'templateOutputs': {
+                'Contract': contract,
+                'Default': {},
+                'Usage': 'Out'
             }
-        return result
+        }
 
     @staticmethod
     def _translate_files(source_directory):
@@ -244,7 +251,7 @@ class HotPackage(package_base.PackageBase):
 
     @staticmethod
     def _format_value(value):
-        if isinstance(value, types.StringTypes):
+        if isinstance(value, basestring):
             return str("'" + value + "'")
         return str(value)
 
@@ -257,10 +264,6 @@ class HotPackage(package_base.PackageBase):
             hot_files_map[f] = YAQL(file_path)
 
         hot_env = YAQL("$.hotEnvironment")
-
-        copy_outputs = []
-        for key in (hot.get('outputs') or {}).keys():
-            copy_outputs.append({YAQL('$.' + key): YAQL('$outputs.' + key)})
 
         deploy = [
             {YAQL('$environment'): YAQL(
@@ -316,8 +319,7 @@ class HotPackage(package_base.PackageBase):
                     }
                 ],
                 'Else': [
-                    {YAQL('$outputs'): YAQL('$stack.output()')},
-                    {'Do': copy_outputs},
+                    {YAQL('$.templateOutputs'): YAQL('$stack.output()')},
                     YAQL("$reporter.report($this, "
                          "'Stack was successfully created')"),
 
@@ -336,7 +338,7 @@ class HotPackage(package_base.PackageBase):
         ]
 
         return {
-            'Workflow': {
+            'Methods': {
                 'deploy': {
                     'Body': deploy
                 },
@@ -525,4 +527,6 @@ class HotPackage(package_base.PackageBase):
                 groups, self.full_name),
             'Forms': forms
         }
-        return yaml.dump(translated, Dumper=Dumper)
+
+        # see comment above about default_style
+        return yaml.dump(translated, Dumper=Dumper, default_style='"')

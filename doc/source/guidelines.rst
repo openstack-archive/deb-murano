@@ -29,7 +29,7 @@ and it is recommended that developers execute the tests themselves to
 catch regressions early.  Developers are also expected to keep the
 test suite up-to-date with any submitted code changes.
 
-Unit tests are located at ``muranoapi/tests``.
+Unit tests are located at ``murano/tests``.
 
 Murano's suite of unit tests can be executed in an isolated environment
 with `Tox`_. To execute the unit tests run the following from the root of
@@ -38,12 +38,6 @@ Murano repo on Python 2.7:
 ::
 
     tox -e py27
-
-For Python 2.6:
-
-::
-
-    tox -e py26
 
 
 Documentation Guidelines

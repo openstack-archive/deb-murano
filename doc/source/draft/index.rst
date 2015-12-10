@@ -11,8 +11,7 @@ Welcome to Murano Documentation (BETA)
 combines an application catalog with versatile
 tooling to simplify and accelerate packaging and
 deployment. It can be used with almost any application
-and service in OpenStack, and is extensible to
-other clouds.
+and service in OpenStack.
 
 This documentation guides application developers
 through the process of composing an application
@@ -51,7 +50,7 @@ Using Murano
    enduser-guide/manage_environments
    enduser-guide/manage_applications
    enduser-guide/log_into_murano_instance
-   enduser-guide/troubleshooting
+   enduser-guide/deploying_using_cli
 
 Deploying Murano
 ~~~~~~~~~~~~~~~~
@@ -66,6 +65,7 @@ Deploying Murano
    admin-guide/murano_repository
    admin-guide/murano_agent
    admin-guide/use_cli
+   admin-guide/configure_cloud_foundry_service_broker
    admin-guide/admin_troubleshooting
 
 Developing Applications
@@ -91,7 +91,7 @@ Contributing
 
    contributor-guide/how_to_contribute
    contributor-guide/dev_guidelines
-   contributor-guide/plugin_development
+   contributor-guide/plugins
    contributor-guide/deploy_local_dev_env
    contributor-guide/testing
    contributor-guide/doc_guidelines

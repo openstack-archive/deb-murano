@@ -22,10 +22,12 @@ import time
 
 from heatclient import client as heatclient
 from keystoneclient import exceptions as ks_exceptions
-from keystoneclient.v2_0 import client as ksclient
+import keystoneclient.v2_0 as keystoneclientv2
+import keystoneclient.v3 as keystoneclientv3
 from muranoclient import client as mclient
 import muranoclient.common.exceptions as exceptions
 from oslo_log import log as logging
+import re
 import yaml
 
 from murano.services import states
@@ -76,10 +78,16 @@ class DeployTestMixin(zip_utils.ZipUtilsMixin):
     @staticmethod
     @memoize
     def keystone_client():
+        region = CONF.murano.region_name
+        if re.match(".*/v3/?$", CONF.murano.auth_url):
+            ksclient = keystoneclientv3
+        else:
+            ksclient = keystoneclientv2
         return ksclient.Client(username=CONF.murano.user,
                                password=CONF.murano.password,
                                tenant_name=CONF.murano.tenant,
-                               auth_url=CONF.murano.auth_url)
+                               auth_url=CONF.murano.auth_url,
+                               region_name=region)
 
     @classmethod
     @memoize
@@ -311,7 +319,7 @@ class DeployTestMixin(zip_utils.ZipUtilsMixin):
     def get_murano_url(cls):
         try:
             url = cls.keystone_client().service_catalog.url_for(
-                service_type='application_catalog', endpoint_type='publicURL')
+                service_type='application-catalog', endpoint_type='publicURL')
         except ks_exceptions.EndpointNotFound:
             url = CONF.murano.murano_url
             LOG.warning("Murano endpoint not found in Keystone. Using CONF.")

@@ -87,7 +87,7 @@ class Environment(Base, TimestampMixin):
 
 
 class EnvironmentTemplate(Base, TimestampMixin):
-    """Represents a Environment emplate in the metadata-store."""
+    """Represents a Environment Template in the metadata-store."""
     __tablename__ = 'environment-template'
 
     id = sa.Column(sa.String(36),
@@ -97,6 +97,7 @@ class EnvironmentTemplate(Base, TimestampMixin):
     tenant_id = sa.Column(sa.String(36), nullable=False)
     version = sa.Column(sa.BigInteger, nullable=False, default=0)
     description = sa.Column(st.JsonBlob(), nullable=False, default={})
+    is_public = sa.Column(sa.Boolean, default=False)
 
     def to_dict(self):
         dictionary = super(EnvironmentTemplate, self).to_dict()

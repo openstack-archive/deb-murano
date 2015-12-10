@@ -353,11 +353,191 @@ automatically created ``quick-env-1`` environment.
 Deploy an application
 ~~~~~~~~~~~~~~~~~~~~~
 
-Show an application topology
-----------------------------
+Make sure to add necessary applications to your environment, then deploy it
+following one of the options below:
 
-Show a deployment log location
-------------------------------
+* Deploy an environment from the Environments page
+
+  #. In OpenStack dashboard, navigate to :menuselection:`Murano >
+     Application Catalog > Environments`.
+
+  #. Select :guilabel:`Deploy Environment` from the Actions drop-down list
+     next to the environment you want to deploy.
+
+     .. image:: figures/deploy_env_2.png
+        :width: 630 px
+        :alt: Environments page
+
+     It may take some time for the environment to deploy. Wait for the status
+     to change from `Deploying` to `Ready`. You cannot add applications to
+     your environment during deployment.
+
+* Deploy an environment from the Environment Components page
+
+  #. In OpenStack dashboard, navigate to :menuselection:`Murano >
+     Application Catalog > Environments`.
+
+  #. Click the name of the environment you want to deploy.
+
+     .. image:: figures/environments.png
+        :width: 630 px
+        :alt: Environments page
+
+  #. On the Environment Components page, click :guilabel:`Deploy This Environment`
+     to start the deployment.
+
+     .. image:: figures/deploy_env.png
+        :width: 630 px
+        :alt: Environment Components page
+
+     It may take some time for the environment to deploy. You cannot add
+     applications to your environment during deployment. Wait for the status
+     to change from `Deploying` to `Ready`. You can check the status either on
+     the Environments page or on the Environment Components page.
+
+.. _component-details:
+
+Browse component details
+------------------------
+
+You can browse component details to find the following information about
+a component:
+
+* Name
+* ID
+* Type
+* Instance name (available only after deployment)
+* Heat orchestration stack name (available only after deployment)
+
+To browse a component details, perform the following steps:
+
+#. In OpenStack Dashboard, navigate to
+   :menuselection:`Murano > Application Catalog > Environments`.
+
+#. Click the name of the required environment.
+
+#. In the :guilabel:`Component List` section, click the name of the required
+   component.
+
+   .. image:: figures/component-details.png
+      :width: 630 px
+      :alt: Components details
+
+   The links redirect to corresponding horizon pages with the detailed
+   information on instance and heat stack.
+
+.. _application-topology:
+
+Application topology
+--------------------
+
+Once you add an application to your environment, the application topology of
+this environment becomes available in a separate tab. The topology represents
+an elastic diagram showing the relationship between a component and the
+infrastructure it runs on. To view the topology:
+
+#. In OpenStack Dashboard, navigate to
+   :menuselection:`Murano > Application Catalog > Environments`.
+
+#. Click the name of the necessary environment.
+
+#. Click the :guilabel:`Topology` tab.
+
+The topology is helpful to visually display complex components, for example
+Kubernetes. The red icons reflect errors during the deployment while the green
+ones show success.
+
+.. image:: figures/topology_kubernetes.png
+   :alt: Topology tab: Deployment failed
+   :width: 630 px
+
+The following elements of the topology are virtual machine and an instance of
+dependent MuranoPL class:
+
++------------------------------------------+----------------------------+
+| Element                                  | Meaning                    |
++==========================================+============================+
+| .. image:: figures/topology_element_1.png| Virtual machine            |
++------------------------------------------+----------------------------+
+| .. image:: figures/topology_element_2.png| Instance                   |
++------------------------------------------+----------------------------+
+
+Position your mouse pointer over an element to see its name, ID, and other
+details.
+
+.. image:: figures/topology_wordpress.png
+   :alt: Topology tab: Deployment successful
+   :width: 630 px
+
+
+Deployment logs
+---------------
+
+To get detailed information on a deployment, use:
+
+* :ref:`Deployment history <depl-history>`, which contains logs and deployment
+  structure of an environment.
+
+* :ref:`Latest deployment log <latest-log>`, which contains information on the
+  latest deployment of an environment.
+
+* :ref:`Component logs <component-logs>`, which contain logs on a particular
+  component in an environment.
+
+.. _depl-history:
+
+**Deployment history**
+
+To see the log of a particular deployment, proceed with the steps
+below:
+
+#. In OpenStack Dashboard, navigate to :menuselection:`Murano > Application
+   Catalog > Environments`.
+
+#. Click the name of the required environment.
+
+#. Click the :guilabel:`Deployment History` tab.
+
+#. Find the required deployment and click :guilabel:`Show Details`.
+
+#. Click the :guilabel:`Logs` tab to see the logs.
+
+   .. image:: figures/logs.png
+      :alt: Deployment Logs page
+      :width: 630 px
+
+.. _latest-log:
+
+**Latest deployment log**
+
+To see the latest deployment log, proceed with the steps below:
+
+#. In OpenStack Dashboard, navigate to :menuselection:`Murano > Application
+   Catalog > Environments`.
+
+#. Click the name of the required environment.
+
+#. Click the :guilabel:`Latest Deployment Log` tab to see the logs.
+
+.. _component-logs:
+
+**Component logs**
+
+To see the logs of a particular component of an environment, proceed with the
+steps below:
+
+#. In OpenStack Dashboard, navigate to :menuselection:`Murano > Application
+   Catalog > Environments`.
+
+#. Click the name of the required environment.
+
+#. In the :guilabel:`Component List` section, click the required component.
+
+#. Click the :guilabel:`Logs` tab to see the component logs.
+
+   .. image:: figures/env-component-logs.png
+      :alt: Component Logs page
+      :width: 630 px
 
 Delete an application
 ~~~~~~~~~~~~~~~~~~~~~

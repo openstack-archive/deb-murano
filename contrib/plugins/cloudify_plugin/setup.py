@@ -1,4 +1,5 @@
-#    Copyright (c) 2015 Mirantis, Inc.
+# Copyright 2011-2012 OpenStack Foundation
+# All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -12,17 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from keystoneclient.v3 import client
-from oslo_config import cfg
+import setuptools
 
-CONF = cfg.CONF
-
-
-def authenticate(user, password, tenant=None):
-    project_name = tenant or CONF.cfapi.tenant
-    keystone = client.Client(username=user,
-                             password=password,
-                             project_name=project_name,
-                             auth_url=CONF.cfapi.auth_url.replace(
-                                 'v2.0', 'v3'))
-    return keystone
+# all other params will be taken from setup.cfg
+setuptools.setup(packages=setuptools.find_packages(),
+                 setup_requires=['pbr'], pbr=True)

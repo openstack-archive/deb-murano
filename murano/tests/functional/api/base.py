@@ -19,22 +19,29 @@ import uuid
 
 import requests
 from tempest import clients
-from tempest.common import cred_provider
+from tempest.common import credentials_factory as common_creds
 from tempest.common import dynamic_creds
 from tempest import config
 from tempest import test
 from tempest_lib.common import rest_client
 from tempest_lib import exceptions
 
+import murano.tests.functional.common.zip_utils_mixin as zip_utils
 
 CONF = config.CONF
+
+
+def generate_name(prefix):
+    """Generate name for objects."""
+    suffix = uuid.uuid4().hex[:8]
+    return "{0}_{1}".format(prefix, suffix)
 
 
 class MuranoClient(rest_client.RestClient):
     def __init__(self, auth_provider):
         super(MuranoClient, self).__init__(
             auth_provider,
-            'application_catalog',
+            'application-catalog',
             CONF.identity.region
         )
 
@@ -176,14 +183,16 @@ class MuranoClient(rest_client.RestClient):
 
         return resp, json.loads(body)
 
-    def upload_package(self, package_name, body):
-        __location__ = os.path.realpath(os.path.join(
-            os.getcwd(), os.path.dirname(__file__)))
-
+    def upload_package(self, package_name, body, path=None):
         headers = {'X-Auth-Token': self.auth_provider.get_token()}
 
-        files = {'%s' % package_name: open(
-            os.path.join(__location__, 'v1/DummyTestApp.zip'), 'rb')}
+        if not path:
+            __location__ = os.path.realpath(os.path.join(
+                os.getcwd(), os.path.dirname(__file__)))
+
+            path = os.path.join(__location__, 'v1/DummyTestApp.zip')
+
+        files = {'%s' % package_name: open(path, 'rb')}
 
         post_body = {'JsonString': json.dumps(body)}
         request_url = '{endpoint}{url}'.format(endpoint=self.base_url,
@@ -232,22 +241,42 @@ class MuranoClient(rest_client.RestClient):
         return self.get('v1/catalog/packages/{0}/logo'.format(id),
                         headers=headers)
 
-    def list_categories(self):
-        resp, body = self.get('v1/catalog/packages/categories')
-
-        return resp, json.loads(body)
-
     def get_env_templates_list(self):
         """Check the environment templates deployed by the user."""
         resp, body = self.get('v1/templates')
 
+        return resp, json.loads(body)['templates']
+
+    def get_public_env_templates_list(self):
+        """Check the public environment templates deployed by the user."""
+        resp, body = self.get('v1/templates?is_public=true')
+        return resp, json.loads(body)
+
+    def get_private_env_templates_list(self):
+        """Check the public environment templates deployed by the user."""
+        resp, body = self.get('v1/templates?is_public=false')
         return resp, json.loads(body)
 
     def create_env_template(self, env_template_name):
         """Check the creation of an environment template."""
-        body = {'name': env_template_name}
+        body = {'name': env_template_name, "is_public": False}
         resp, body = self.post('v1/templates', json.dumps(body))
 
+        return resp, json.loads(body)
+
+    def create_clone_env_template(self, env_template_id,
+                                  cloned_env_template_name):
+        """Clone an environment template."""
+        body = {'name': cloned_env_template_name}
+        resp, body = self.post('v1/templates/{0}/clone'.
+                               format(env_template_id), json.dumps(body))
+
+        return resp, json.loads(body)
+
+    def create_public_env_template(self, env_template_name):
+        """Check the creation of an environment template."""
+        body = {'name': env_template_name, "is_public": True}
+        resp, body = self.post('v1/templates', json.dumps(body))
         return resp, json.loads(body)
 
     def create_env_template_with_apps(self, env_template_name):
@@ -325,8 +354,64 @@ class MuranoClient(rest_client.RestClient):
             }
         }
 
+    def list_categories(self):
+        resp, body = self.get('v1/catalog/packages/categories')
+        return resp, json.loads(body)
 
-class TestCase(test.BaseTestCase):
+    def create_category(self, name):
+        body = {'name': name}
+        resp, body = self.post('v1/catalog/categories', json.dumps(body))
+
+        return resp, json.loads(body)
+
+    def delete_category(self, id):
+        return self.delete('v1/catalog/categories/{0}'.format(id))
+
+    def get_category(self, id):
+        resp, body = self.get('v1/catalog/categories/{0}'.format(id))
+        return resp, json.loads(body)
+
+
+class TestAuth(test.BaseTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super(TestAuth, cls).setUpClass()
+
+        # If no credentials are provided, the Manager will use those
+        # in CONF.identity and generate an auth_provider from them
+        cls.creds = common_creds.get_configured_credentials(
+            credential_type='identity_admin')
+        mgr = clients.Manager(cls.creds)
+        cls.client = MuranoClient(mgr.auth_provider)
+
+
+class TestObjectCreation(TestAuth):
+
+    def create_app_zip_archive(self, name, relative_path="v1/"):
+        location = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
+        path_to_source = os.path.join(location, relative_path)
+
+        path = zip_utils.ZipUtilsMixin.zip_dir(path_to_source, name)
+        self.addCleanup(os.remove, path)
+
+        return path
+
+    def upload_package(self, name, body, path):
+        resp = self.client.upload_package(name, body, path)
+        self.addCleanup(self.client.delete_package, resp.json()['id'])
+
+        return resp
+
+    def create_category(self, name):
+        resp, body = self.client.create_category(name)
+        self.addCleanup(self.client.delete_category, body['id'])
+
+        return resp, body
+
+
+class TestCase(TestAuth):
 
     @classmethod
     def setUpClass(cls):
@@ -334,7 +419,7 @@ class TestCase(test.BaseTestCase):
 
         # If no credentials are provided, the Manager will use those
         # in CONF.identity and generate an auth_provider from them
-        cls.creds = cred_provider.get_configured_credentials(
+        cls.creds = common_creds.get_configured_credentials(
             credential_type='identity_admin')
         mgr = clients.Manager(cls.creds)
         cls.client = MuranoClient(mgr.auth_provider)
@@ -367,10 +452,34 @@ class TestCase(test.BaseTestCase):
         return environment
 
     def create_env_template(self, name):
-        env_template = self.client.create_env_template(name)[1]
+        resp, env_template = self.client.create_env_template(name)
         self.env_templates.append(env_template)
+        return resp, env_template
 
-        return env_template
+    def create_public_env_template(self, name):
+        resp, env_template = self.client.create_public_env_template(name)
+        self.env_templates.append(env_template)
+        return resp, env_template
+
+    def create_env_template_with_apps(self, name):
+        resp, env_template = self.client.create_env_template_with_apps(name)
+        self.env_templates.append(env_template)
+        return resp, env_template
+
+    def clone_env_template(self, env_template_id, cloned_env_template_name):
+        create_clone_env_temp = self.client.create_clone_env_template
+        resp, env_template = create_clone_env_temp(env_template_id,
+                                                   cloned_env_template_name)
+        self.env_templates.append(env_template)
+        return resp, env_template
+
+    def create_env_from_template(self, env_template_id, env_name):
+        resp, env_id = self.client.create_env_from_template(env_template_id,
+                                                            env_name)
+        resp, env = self.client.get_environment(env_id['environment_id'])
+
+        self.environments.append(env)
+        return resp, env
 
     def create_demo_service(self, environment_id, session_id, client=None):
         if not client:
@@ -405,8 +514,10 @@ class NegativeTestCase(TestCase):
 
         # If no credentials are provided, the Manager will use those
         # in CONF.identity and generate an auth_provider from them
+        admin_creds = common_creds.get_configured_credentials(
+            credential_type='identity_admin')
         cls.dynamic_creds = dynamic_creds.DynamicCredentialProvider(
-            'v2', name=cls.__name__)
+            identity_version='v2', name=cls.__name__, admin_creds=admin_creds)
         creds = cls.dynamic_creds.get_alt_creds()
         mgr = clients.Manager(credentials=creds)
         cls.alt_client = MuranoClient(mgr.auth_provider)

@@ -47,6 +47,9 @@ MuranoGroup = [
     cfg.StrOpt('linux_image',
                default='default_linux',
                help="image for linux services"),
+    cfg.StrOpt('instance_type',
+               default='io.murano.resources.LinuxMuranoInstance',
+               help="murano instance type"),
     cfg.StrOpt('docker_image',
                default='ubuntu14.04-x64-docker',
                help="image for docker applications"),
@@ -58,7 +61,8 @@ MuranoGroup = [
                help="image for hdp-sandbox"),
     cfg.StrOpt('kubernetes_image',
                default="ubuntu14.04-x64-kubernetes",
-               help="image for kubernetes")
+               help="image for kubernetes"),
+    cfg.StrOpt('region_name', help="region name for services")
 ]
 
 CONF = cfg.CONF
