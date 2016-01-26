@@ -7,14 +7,74 @@
 Using CLI
 =========
 
-Install murano client
-~~~~~~~~~~~~~~~~~~~~~
+This section is under development at the moment and will be available soon.
 
 Manage applications
 ~~~~~~~~~~~~~~~~~~~
 
 Manage environments
 ~~~~~~~~~~~~~~~~~~~
+
+An environment is a set of logically connected applications that are grouped
+together for an easy management. By default, each environment has a single
+network for all its applications, and the deployment of the environment is
+defined in a single heat stack. Applications in different environments are
+always independent from one another.
+
+An environment is a single unit of deployment. This means that you deploy not
+an application but an environment that contains one or multiple applications.
+
+Using CLI, you can easily perform such actions with an environment as
+creating, renaming, viewing, and others.
+
+Create an environment
+---------------------
+
+To create an environment, use the following command specifying the
+environment name:
+
+.. code-block:: console
+
+   murano environment-create <NAME>
+
+Rename an environment
+---------------------
+
+To rename an environment, use the following command specifying the old name of
+the environment or its ID and the new name:
+
+.. code-block:: console
+
+   murano environment-rename <OLD_NAME_OR_ID> <NEW_NAME>
+
+Delete an environment
+---------------------
+
+To delete an environment, use the following command specifying the
+environment name or ID:
+
+.. code-block:: console
+
+   murano environment-delete <NAME_OR_ID>
+
+List deployments for an environment
+-----------------------------------
+
+To get a list of deployments for a particular environment, use the following
+command specifying the environment name or ID:
+
+.. code-block:: console
+
+   murano deployment-list <NAME_OR_ID>
+
+List the environments
+---------------------
+
+To get a list of all existing environments, run:
+
+.. code-block:: console
+
+   murano environment-list
 
 Manage packages
 ~~~~~~~~~~~~~~~
@@ -366,11 +426,7 @@ catalog.
 The :command:`package-create` command is also useful for autogenerating
 packages from heat templates. In this case you do not need to manually
 specify so many parameters. For more information on automatic package
-composition, please see :ref:`Automatic package composing <compose_package>`
-
+composition, please see :ref:`Automatic package composing <compose_package>`.
 
 Manage categories
 ~~~~~~~~~~~~~~~~~
-
-Use Murano repository
-~~~~~~~~~~~~~~~~~~~~~

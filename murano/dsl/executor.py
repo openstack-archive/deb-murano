@@ -15,6 +15,7 @@
 import collections
 import contextlib
 import itertools
+import six
 import weakref
 
 import eventlet
@@ -93,7 +94,7 @@ class MuranoDslExecutor(object):
         with self._acquire_method_lock(method, this):
             for i, arg in enumerate(args, 2):
                 context[str(i)] = arg
-            for key, value in kwargs.iteritems():
+            for key, value in six.iteritems(kwargs):
                 context[key] = value
 
             def call():
@@ -144,9 +145,9 @@ class MuranoDslExecutor(object):
     def _log_method(self, context, args, kwargs):
         method = helpers.get_current_method(context)
         param_gen = itertools.chain(
-            (unicode(arg) for arg in args),
+            (six.text_type(arg) for arg in args),
             (u'{0} => {1}'.format(name, value)
-             for name, value in kwargs.iteritems()))
+             for name, value in six.iteritems(kwargs)))
         params_str = u', '.join(param_gen)
         method_name = '{0}::{1}'.format(method.murano_class.name, method.name)
         thread_id = helpers.get_current_thread_id()
@@ -210,7 +211,7 @@ class MuranoDslExecutor(object):
                     try:
                         method.invoke(self, obj, (), {}, None)
                     except Exception as e:
-                        LOG.warn(_LW(
+                        LOG.warning(_LW(
                             'Muted exception during execution of .destroy '
                             'on {0}: {1}').format(obj, e), exc_info=True)
 
@@ -220,11 +221,11 @@ class MuranoDslExecutor(object):
             if (isinstance(sys_dict, dict) and
                     sys_dict.get('id') and sys_dict.get('type')):
                 yield sys_dict['id']
-            for val in data.itervalues():
+            for val in six.itervalues(data):
                 for res in self._list_potential_object_ids(val):
                     yield res
         elif isinstance(data, collections.Iterable) and not isinstance(
-                data, basestring):
+                data, six.string_types):
             for val in data:
                 for res in self._list_potential_object_ids(val):
                     yield res

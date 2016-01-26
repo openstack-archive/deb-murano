@@ -16,6 +16,8 @@ import collections
 import weakref
 
 import semantic_version
+import six
+from six.moves import range
 from yaql.language import utils
 
 from murano.dsl import constants
@@ -66,7 +68,7 @@ class MuranoClass(dsl_types.MuranoClass):
         type_obj = cls(ns_resolver, name, package, parent_classes)
 
         properties = data.get('Properties') or {}
-        for property_name, property_spec in properties.iteritems():
+        for property_name, property_spec in six.iteritems(properties):
             spec = typespec.PropertySpec(
                 property_name, property_spec, type_obj)
             type_obj.add_property(property_name, spec)
@@ -78,7 +80,7 @@ class MuranoClass(dsl_types.MuranoClass):
             'destroy': '.destroy'
         }
 
-        for method_name, payload in methods.iteritems():
+        for method_name, payload in six.iteritems(methods):
             type_obj.add_method(
                 method_mappings.get(method_name, method_name), payload)
 
@@ -178,7 +180,7 @@ class MuranoClass(dsl_types.MuranoClass):
     def find_methods(self, predicate):
         result = []
         for c in self.ancestors():
-            for method in c.methods.itervalues():
+            for method in six.itervalues(c.methods):
                 if predicate(method) and method not in result:
                     result.append(method)
         return result
@@ -285,7 +287,7 @@ class MuranoClass(dsl_types.MuranoClass):
                     (parent.package, requirement))
 
         package_bindings = {}
-        for versions in aggregation.itervalues():
+        for versions in six.itervalues(aggregation):
             mappings = self._remap_package(versions)
             package_bindings.update(mappings)
 

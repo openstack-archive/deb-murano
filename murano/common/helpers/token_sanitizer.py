@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import six
+
 
 class TokenSanitizer(object):
     """Helper class for cleaning some object from different passwords/tokens.
@@ -50,12 +52,12 @@ class TokenSanitizer(object):
         :return: Sanitized object
         """
         if isinstance(obj, dict):
-            return dict([self.sanitize(item) for item in obj.iteritems()])
+            return dict([self.sanitize(item) for item in six.iteritems(obj)])
         elif isinstance(obj, list):
             return [self.sanitize(item) for item in obj]
         elif isinstance(obj, tuple):
             k, v = obj
-            if self._contains_token(k) and isinstance(v, basestring):
+            if self._contains_token(k) and isinstance(v, six.string_types):
                 return k, self.message
             return k, self.sanitize(v)
         else:

@@ -18,6 +18,7 @@ import functools as func
 import eventlet
 import jsonschema
 from oslo_log import log as logging
+import six
 
 from murano.common.i18n import _, _LE
 
@@ -26,7 +27,7 @@ LOG = logging.getLogger(__name__)
 
 
 class TraverseHelper(object):
-    value_type = (basestring, int, float, bool)
+    value_type = (six.string_types, int, float, bool)
 
     @staticmethod
     def get(path, source):
@@ -164,8 +165,8 @@ def is_different(obj1, obj2):
 
         if o1 is o2:
             return
-        elif (isinstance(o1, basestring) and
-                isinstance(o2, basestring)) and o1 == o2:
+        elif (isinstance(o1, six.string_types) and
+                isinstance(o2, six.string_types)) and o1 == o2:
             return
         elif type(o1) != type(o2):
             raise Difference()
@@ -198,7 +199,7 @@ def build_entity_map(value):
         if isinstance(value, dict):
             if '?' in value and 'id' in value['?']:
                 id_map[value['?']['id']] = value
-            for v in value.itervalues():
+            for v in six.itervalues(value):
                 build_entity_map_recursive(v, id_map)
         if isinstance(value, list):
             for item in value:

@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 import sys
 import uuid
 
@@ -57,7 +58,7 @@ class TypeScheme(object):
             if value is None:
                 return None
             try:
-                return unicode(value)
+                return six.text_type(value)
             except Exception:
                 raise exceptions.ContractViolationException(
                     'Value {0} violates string() contract'.format(
@@ -174,7 +175,7 @@ class TypeScheme(object):
 
                 obj = object_store.load(
                     value, owner, root_context, defaults=default)
-            elif isinstance(value, basestring):
+            elif isinstance(value, six.string_types):
                 obj = object_store.get(value)
                 if obj is None:
                     if not object_store.initializing:
@@ -218,7 +219,7 @@ class TypeScheme(object):
             return data
         result = {}
         yaql_key = None
-        for key, value in spec.iteritems():
+        for key, value in six.iteritems(spec):
             if isinstance(key, dsl_types.YaqlExpression):
                 if yaql_key is not None:
                     raise exceptions.DslContractSyntaxError(
@@ -233,7 +234,7 @@ class TypeScheme(object):
 
         if yaql_key is not None:
             yaql_value = spec[yaql_key]
-            for key, value in data.iteritems():
+            for key, value in six.iteritems(data):
                 if key in result:
                     continue
                 key = self._map(key, yaql_key, context, path)
@@ -316,6 +317,6 @@ class TypeScheme(object):
 
 
 def format_scalar(value):
-    if isinstance(value, basestring):
+    if isinstance(value, six.string_types):
         return "'{0}'".format(value)
-    return unicode(value)
+    return six.text_type(value)

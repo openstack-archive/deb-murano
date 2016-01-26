@@ -42,7 +42,7 @@ Methods for application package management
 List packages
 -------------
 
-`/v1/catalog/packages?{marker}{limit}{order_by}{type}{category}{fqn}{owned}{catalog}{class_name} [GET]`
+`/v1/catalog/packages?{marker}{limit}{order_by}{type}{category}{fqn}{owned}{id}{catalog}{class_name}{name} [GET]`
 
 This is the compound request to list and search through application catalog.
 If there are no search parameters all packages that is_public, enabled and belong to the user's tenant will be listed.
@@ -73,11 +73,15 @@ For an admin role all packages are available.
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``owned``            | bool        | Search only from packages owned by current tenant                                                                            |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
+| ``id``               | string      | Allows to point an id for a search                                                                                           |                                 |
++----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``include_disabled`` | bool        | Include disabled packages in a the result                                                                                    |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``search``           | string      | Gives opportunity to search specified data by all the package parameters                                                     |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 | ``class_name``       | string      | Search only for packages, that use specified class                                                                           |
++----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
+| ``name``             | string      | Allows to point a package name for a search                                                                           |
 +----------------------+-------------+------------------------------------------------------------------------------------------------------------------------------+
 
 **Response 200 (application/json)**

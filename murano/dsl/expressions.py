@@ -13,6 +13,8 @@
 #    under the License.
 
 
+import six
+
 from murano.dsl import dsl_exception
 from murano.dsl import helpers
 from murano.dsl import lhs_expression
@@ -47,7 +49,7 @@ class Statement(DslExpression):
         elif isinstance(statement, dict):
             if len(statement) != 1:
                 raise SyntaxError()
-            key = statement.keys()[0]
+            key = list(statement.keys())[0]
             value = statement[key]
         else:
             raise SyntaxError()
@@ -82,7 +84,7 @@ def parse_expression(expr):
         result = Statement(expr)
     elif isinstance(expr, dict):
         kwds = {}
-        for key, value in expr.iteritems():
+        for key, value in six.iteritems(expr):
             if isinstance(key, yaql_expression.YaqlExpression):
                 if result is not None:
                     raise ValueError()

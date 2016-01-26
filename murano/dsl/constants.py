@@ -33,11 +33,13 @@ CTX_THIS = '$?this'
 CTX_TYPE = '$?type'
 CTX_VARIABLE_SCOPE = '$?variableScope'
 CTX_YAQL_ENGINE = '$?yaqlEngine'
+CTX_ORIGINAL_CONTEXT = '$?originalContext'
 
 DM_OBJECTS = 'Objects'
 DM_OBJECTS_COPY = 'ObjectsCopy'
 DM_ATTRIBUTES = 'Attributes'
 
+META_MURANO_METHOD = '?muranoMethod'
 META_NO_TRACE = '?noTrace'
 
 CORE_LIBRARY = 'io.murano'

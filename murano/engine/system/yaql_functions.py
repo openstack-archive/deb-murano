@@ -17,6 +17,8 @@ import base64
 import collections
 import random
 import re
+import six
+from six.moves import range
 import string
 import time
 
@@ -58,7 +60,7 @@ def pselect(collection, composer):
 @specs.parameter('mappings', collections.Mapping)
 @specs.extension_method
 def bind(obj, mappings):
-    if isinstance(obj, basestring) and obj.startswith('$'):
+    if isinstance(obj, six.string_types) and obj.startswith('$'):
         value = _convert_macro_parameter(obj[1:], mappings)
         if value is not None:
             return value
@@ -66,10 +68,10 @@ def bind(obj, mappings):
         return [bind(t, mappings) for t in obj]
     elif isinstance(obj, collections.Mapping):
         result = {}
-        for key, value in obj.iteritems():
+        for key, value in six.iteritems(obj):
             result[bind(key, mappings)] = bind(value, mappings)
         return result
-    elif isinstance(obj, basestring) and obj.startswith('$'):
+    elif isinstance(obj, six.string_types) and obj.startswith('$'):
         value = _convert_macro_parameter(obj[1:], mappings)
         if value is not None:
             return value
@@ -81,7 +83,7 @@ def _convert_macro_parameter(macro, mappings):
 
     def replace(match):
         replaced[0] = True
-        return unicode(mappings.get(match.group(1)))
+        return six.text_type(mappings.get(match.group(1)))
 
     result = re.sub('{(\\w+?)}', replace, macro)
     if replaced[0]:
@@ -178,7 +180,7 @@ def random_name():
 @specs.extension_method
 def first_or_default(collection, default=None):
     try:
-        return iter(collection).next()
+        return next(iter(collection))
     except StopIteration:
         return default
 

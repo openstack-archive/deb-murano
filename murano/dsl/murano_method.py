@@ -15,6 +15,7 @@
 import collections
 import weakref
 
+import six
 from yaql.language import specs
 
 from murano.dsl import dsl
@@ -44,7 +45,8 @@ class MuranoMethod(dsl_types.MuranoMethod):
             if isinstance(payload, specs.FunctionDefinition):
                 self._body = payload
             else:
-                self._body = yaql_integration.get_function_definition(payload)
+                self._body = yaql_integration.get_function_definition(
+                    payload, weakref.proxy(self))
             self._arguments_scheme = None
             self._usage = (self._body.meta.get('usage') or
                            self._body.meta.get('Usage') or
@@ -60,17 +62,18 @@ class MuranoMethod(dsl_types.MuranoMethod):
             arguments_scheme = payload.get('Arguments') or []
             if isinstance(arguments_scheme, dict):
                 arguments_scheme = [{key: value} for key, value in
-                                    arguments_scheme.iteritems()]
+                                    six.iteritems(arguments_scheme)]
             self._arguments_scheme = collections.OrderedDict()
             for record in arguments_scheme:
                 if (not isinstance(record, dict) or
                         len(record) > 1):
                     raise ValueError()
-                name = record.keys()[0]
+                name = list(record.keys())[0]
                 self._arguments_scheme[name] = typespec.ArgumentSpec(
                     self.name, name, record[name], self.murano_class)
         self._yaql_function_definition = \
-            yaql_integration.build_wrapper_function_definition(self)
+            yaql_integration.build_wrapper_function_definition(
+                weakref.proxy(self))
 
     @property
     def name(self):

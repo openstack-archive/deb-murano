@@ -24,6 +24,7 @@ from oslo_config import cfg
 from oslo_db import options
 from oslo_log import log as logging
 from oslo_utils import importutils
+import six
 
 from murano import version
 from murano.common.i18n import _, _LE
@@ -34,7 +35,9 @@ from murano.dsl import executor
 from murano.dsl import helpers
 from murano.engine import client_manager
 from murano.engine import environment
+from murano.engine import mock_context_manager
 from murano.engine import package_loader
+
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -96,7 +99,7 @@ class MuranoTestRunner(object):
             # Check for method name occurrence in all methods.
             # if there is no dot in provided item - it is a method name
             if '.' not in item:
-                for class_name, methods in class_to_methods.iteritems():
+                for class_name, methods in six.iteritems(class_to_methods):
                     methods_to_run[class_name] = []
                     if item in methods:
                         methods_to_run[class_name].append(item)
@@ -115,31 +118,28 @@ class MuranoTestRunner(object):
                     m for m in class_to_methods[class_to_test]
                     if m == test_method]
                 continue
-        methods_count = sum(len(v) for v in methods_to_run.itervalues())
+        methods_count = sum(len(v) for v in six.itervalues(methods_to_run))
         methods = [k + '.' + method
-                   for k, v in methods_to_run.iteritems() for method in v]
+                   for k, v in six.iteritems(methods_to_run) for method in v]
         LOG.debug('{0} method(s) is(are) going to be executed: '
                   '\n{1}'.format(methods_count, '\n'.join(methods)))
         return methods_to_run
 
-    def _get_all_test_methods(self, exc, package):
-        """Initiate objects of package classes and get test methods.
+    def _get_test_cases_by_classes(self, package):
+        """Build valid test cases list for each class in the provided package.
 
            Check, if test class and test case name are valid.
-           Return class mappings to objects and test methods.
+           Return class mappings to test cases.
         """
-        class_to_obj = {}
         class_to_methods = {}
         for pkg_class_name in package.classes:
             class_obj = package.find_class(pkg_class_name, False)
-
-            obj = class_obj.new(None, exc.object_store)(None)
-            if not helpers.is_instance_of(obj, BASE_CLASS, '*'):
+            base_class = package.find_class(BASE_CLASS)
+            if not base_class.is_compatible(class_obj):
                 LOG.debug('Class {0} is not inherited from {1}. '
                           'Skipping it.'.format(pkg_class_name, BASE_CLASS))
                 continue
 
-            class_to_obj[pkg_class_name] = obj
             # Exclude methods, that are not test cases.
             tests = []
             valid_test_name = TEST_CASE_NAME
@@ -148,7 +148,7 @@ class MuranoTestRunner(object):
                 if valid_test_name.match(m):
                     tests.append(m)
             class_to_methods[pkg_class_name] = tests
-        return class_to_methods, class_to_obj
+        return class_to_methods
 
     def _call_service_method(self, name, exc, obj):
         if name in obj.type.methods:
@@ -178,7 +178,7 @@ class MuranoTestRunner(object):
         # Load keystone configuration parameters from config
         importutils.import_module('keystonemiddleware.auth_token')
 
-        for param, value in ks_opts.iteritems():
+        for param, value in six.iteritems(ks_opts):
             if not value:
                 ks_opts[param] = getattr(CONF.keystone_authtoken,
                                          ks_opts_to_config[param])
@@ -198,10 +198,6 @@ class MuranoTestRunner(object):
         load_packages_from = self.args.load_packages_from
         tests_to_run = self.args.tests
 
-        if not provided_pkg_name:
-            msg = _('Package name is required parameter.')
-            self.error(msg)
-
         ks_opts = self._validate_keystone_opts(self.args)
 
         client = ks_client.Client(**ks_opts)
@@ -219,13 +215,9 @@ class MuranoTestRunner(object):
         with package_loader.CombinedPackageLoader(
                 murano_client_factory, client.tenant_id) as pkg_loader:
             engine.get_plugin_loader().register_in_loader(pkg_loader)
-            exc = executor.MuranoDslExecutor(
-                pkg_loader, engine.ContextManager(), test_env)
 
             package = self._load_package(pkg_loader, provided_pkg_name)
-            class_to_methods, class_to_obj = self._get_all_test_methods(
-                exc, package)
-
+            class_to_methods = self._get_test_cases_by_classes(package)
             run_set = self._get_methods_to_run(package,
                                                tests_to_run,
                                                class_to_methods)
@@ -236,18 +228,25 @@ class MuranoTestRunner(object):
                 LOG.error(msg)
                 self.error(msg)
 
-            for pkg_class, methods in run_set.iteritems():
-                obj = class_to_obj[pkg_class]
-                for m in methods:
-                    self._call_service_method('setUp', exc, obj)
+            for pkg_class, test_cases in six.iteritems(run_set):
+                for m in test_cases:
+                    # Create new executor for each test case to provide
+                    # pure test environment
+                    executer = executor.MuranoDslExecutor(
+                        pkg_loader,
+                        mock_context_manager.MockContextManager(),
+                        test_env)
+                    obj = package.find_class(pkg_class, False).new(
+                        None, executer.object_store)(None)
+                    self._call_service_method('setUp', executer, obj)
                     obj.type.methods[m].usage = 'Action'
 
                     test_env.start()
                     try:
-                        obj.type.invoke(m, exc, obj, (), {})
+                        obj.type.invoke(m, executer, obj, (), {})
                         LOG.debug('\n.....{0}.{1}.....OK'.format(obj.type.name,
                                                                  m))
-                        self._call_service_method('tearDown', exc, obj)
+                        self._call_service_method('tearDown', executer, obj)
                     except Exception:
                         LOG.exception('\n.....{0}.{1}.....FAILURE\n'
                                       ''.format(obj.type.name, m))
@@ -276,10 +275,6 @@ class MuranoTestRunner(object):
         parser.add_argument('--os-project-name',
                             default=utils.env('OS_PROJECT_NAME'),
                             help='Defaults to env[OS_PROJECT_NAME]')
-
-        parser.add_argument('-p', '--package',
-                            help='Full name of application package that is '
-                                 'going to be tested')
         parser.add_argument('-l', '--load_packages_from',
                             nargs='*', metavar='</path1, /path2>',
                             help='Directory to search packages from. '
@@ -289,6 +284,10 @@ class MuranoTestRunner(object):
                             help="increase output verbosity")
         parser.add_argument('--version', action='version',
                             version=version.version_string)
+        parser.add_argument('package',
+                            metavar='<PACKAGE_FQN>',
+                            help='Full name of application package that is '
+                                 'going to be tested')
         parser.add_argument('tests', nargs='*',
                             metavar='<testMethod1, className.testMethod2>',
                             help='List of method names to be tested')
@@ -312,6 +311,7 @@ def main():
                     default_config_files = [murano_conf]
         sys.argv = [sys.argv[0]]
         config.parse_args(default_config_files=default_config_files)
+        logging.setup(CONF, 'murano')
     except RuntimeError as e:
         LOG.exception(_LE("Failed to initialize murano-test-runner: %s") % e)
         sys.exit("ERROR: %s" % e)

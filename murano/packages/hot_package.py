@@ -16,6 +16,7 @@ import os
 import shutil
 import sys
 
+import six
 import yaml
 
 from murano.packages import exceptions
@@ -176,7 +177,7 @@ class HotPackage(package_base.PackageBase):
     @staticmethod
     def _translate_outputs(hot):
         contract = {}
-        for key in (hot.get('outputs') or {}).iterkeys():
+        for key in six.iterkeys(hot.get('outputs') or {}):
             contract[key] = YAQL("$.string()")
         return {
             'templateOutputs': {
@@ -251,7 +252,7 @@ class HotPackage(package_base.PackageBase):
 
     @staticmethod
     def _format_value(value):
-        if isinstance(value, basestring):
+        if isinstance(value, six.string_types):
             return str("'" + value + "'")
         return str(value)
 
@@ -387,7 +388,7 @@ class HotPackage(package_base.PackageBase):
 
         rest_group = []
         properties = []
-        for key, value in hot_parameters.iteritems():
+        for key, value in six.iteritems(hot_parameters):
             if key not in used_parameters:
                 rest_group.append(HotPackage._translate_ui_parameter(
                     key, value))

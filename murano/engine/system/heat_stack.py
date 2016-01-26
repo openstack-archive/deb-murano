@@ -17,7 +17,9 @@ import copy
 
 import eventlet
 import heatclient.exc as heat_exc
+from oslo_config import cfg
 from oslo_log import log as logging
+import six
 
 from murano.common.i18n import _LW
 from murano.common import utils
@@ -25,6 +27,7 @@ from murano.dsl import dsl
 from murano.dsl import helpers
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 HEAT_TEMPLATE_VERSION = '2013-05-23'
 
@@ -45,6 +48,7 @@ class HeatStack(object):
         self._description = description
         self._clients = helpers.get_environment().clients
         self._last_stack_timestamps = (None, None)
+        self._tags = ''
 
     def current(self):
         client = self._clients.get_heat_client()
@@ -106,7 +110,7 @@ class HeatStack(object):
 
     @staticmethod
     def _remove_system_params(parameters):
-        return dict((k, v) for k, v in parameters.iteritems() if
+        return dict((k, v) for k, v in six.iteritems(parameters) if
                     not k.startswith('OS::'))
 
     def _get_status(self):
@@ -151,7 +155,8 @@ class HeatStack(object):
                     else(stack_info.creation_time, stack_info.updated_time)
 
                 if (wait_progress and last_stack_timestamps ==
-                        self._last_stack_timestamps):
+                        self._last_stack_timestamps and
+                        last_stack_timestamps != (None, None)):
                     eventlet.sleep(2)
                     continue
 
@@ -175,6 +180,7 @@ class HeatStack(object):
         if self._applied or self._template is None:
             return
 
+        self._tags = ','.join(CONF.heat.stack_tags)
         if 'heat_template_version' not in self._template:
             self._template['heat_template_version'] = HEAT_TEMPLATE_VERSION
 
@@ -195,7 +201,8 @@ class HeatStack(object):
                     template=template,
                     files=self._files,
                     environment=self._hot_environment,
-                    disable_rollback=True)
+                    disable_rollback=True,
+                    tags=self._tags)
 
                 self._wait_state(lambda status: status == 'CREATE_COMPLETE')
         else:
@@ -208,7 +215,8 @@ class HeatStack(object):
                     files=self._files,
                     environment=self._hot_environment,
                     template=template,
-                    disable_rollback=True)
+                    disable_rollback=True,
+                    tags=self._tags)
                 self._wait_state(
                     lambda status: status == 'UPDATE_COMPLETE', True)
             else:
@@ -223,7 +231,8 @@ class HeatStack(object):
                 return
             client.stacks.delete(stack_id=self._name)
             self._wait_state(
-                lambda status: status in ('DELETE_COMPLETE', 'NOT_FOUND'))
+                lambda status: status in ('DELETE_COMPLETE', 'NOT_FOUND'),
+                wait_progress=True)
         except heat_exc.NotFound:
             LOG.warning(_LW('Stack {stack_name} already deleted?')
                         .format(stack_name=self._name))

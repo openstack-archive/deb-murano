@@ -22,6 +22,7 @@ from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_log import versionutils
+import six
 from webob import exc
 
 import murano.api.v1
@@ -91,8 +92,8 @@ def _validate_body(body):
         f.seek(0)
         if size > pkg_size_limit:
             raise exc.HTTPBadRequest(explanation=_(
-                'Uploading file is too large.'
-                ' The limit is {0} Mb').format(mb_limit))
+                'Uploading file is too large. '
+                'The limit is {0} Mb').format(mb_limit))
 
     if len(body.keys()) > 2:
         msg = _("'multipart/form-data' request body should contain 1 or 2 "
@@ -164,7 +165,11 @@ class Controller(object):
             if 'is_public' in change['path']:
                 if change['value'] is True and not pkg_to_update.is_public:
                     policy.check('publicize_package', req.context)
-                break
+            if 'name' in change['path']:
+                if len(change['value']) > 80:
+                    msg = _('Package name should be 80 characters maximum')
+                    LOG.error(msg)
+                    raise exc.HTTPBadRequest(explanation=msg)
         package = db_api.package_update(package_id, body, req.context)
         return package.to_dict()
 
@@ -235,9 +240,13 @@ class Controller(object):
                     tempf.name, target_dir=None,
                     drop_dir=True) as pkg_to_upload:
                 # extend dictionary for update db
-                for k, v in PKG_PARAMS_MAP.iteritems():
+                for k, v in six.iteritems(PKG_PARAMS_MAP):
                     if hasattr(pkg_to_upload, k):
                         package_meta[v] = getattr(pkg_to_upload, k)
+                if len(package_meta['name']) > 80:
+                    msg = _('Package name should be 80 characters maximum')
+                    LOG.error(msg)
+                    raise exc.HTTPBadRequest(explanation=msg)
                 try:
                     package = db_api.package_upload(
                         package_meta, req.context.tenant)
@@ -316,8 +325,8 @@ class Controller(object):
             for key, value in req.GET.items():
                 if key not in valid_query_params:
                     raise exc.HTTPBadRequest(
-                        _('Bad value passed to filter.'
-                          ' Got {key}, exected:{valid}').format(
+                        _('Bad value passed to filter. '
+                          'Got {key}, exected:{valid}').format(
                             key=key, valid=', '.join(valid_query_params)))
                 if key == 'sort_keys':
                     available_sort_keys = ['name', 'created',
@@ -326,9 +335,9 @@ class Controller(object):
                     for sort_key in value:
                         if sort_key not in available_sort_keys:
                             raise exc.HTTPBadRequest(
-                                explanation=_('Invalid sort key: {sort_key}.'
-                                              ' Must be one of the following:'
-                                              ' {available}').format(
+                                explanation=_('Invalid sort key: {sort_key}. '
+                                              'Must be one of the following: '
+                                              '{available}').format(
                                     sort_key=sort_key,
                                     available=', '.join(available_sort_keys)))
                 if key == 'sort_dir':
@@ -378,8 +387,8 @@ class Controller(object):
         policy.check("delete_category", req.context, target)
         category = db_api.category_get(category_id, packages=True)
         if category.packages:
-            msg = _("It's impossible to delete categories assigned"
-                    " to the package, uploaded to the catalog")
+            msg = _("It's impossible to delete categories assigned "
+                    "to the package, uploaded to the catalog")
             raise exc.HTTPForbidden(explanation=msg)
         db_api.category_delete(category_id)
 

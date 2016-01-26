@@ -43,6 +43,11 @@ Introduction to Murano
 Using Murano
 ~~~~~~~~~~~~
 
+This guide provides murano end users with information on how they can use the
+Application Catalog directly from the Dashboard and through the command-line
+interface (CLI). The screenshots provided in this guide are of the Liberty
+release.
+
 .. toctree::
    :maxdepth: 2
 
@@ -50,6 +55,7 @@ Using Murano
    enduser-guide/manage_environments
    enduser-guide/manage_applications
    enduser-guide/log_into_murano_instance
+   enduser-guide/use_cli
    enduser-guide/deploying_using_cli
 
 Deploying Murano
@@ -60,11 +66,11 @@ Deploying Murano
 
    admin-guide/prepare_lab
    admin-guide/installation
+   admin-guide/policy_enf
    admin-guide/manage_images
    admin-guide/manage_categories
    admin-guide/murano_repository
    admin-guide/murano_agent
-   admin-guide/use_cli
    admin-guide/configure_cloud_foundry_service_broker
    admin-guide/admin_troubleshooting
 
@@ -79,6 +85,7 @@ Developing Applications
    appdev-guide/hot_packages
    appdev-guide/murano_pl
    appdev-guide/murano_packages
+   appdev-guide/app_migrating
    appdev-guide/examples
    appdev-guide/use_cases
    appdev-guide/faq

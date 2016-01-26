@@ -14,6 +14,7 @@
 
 import inspect
 
+import six
 import yaql
 from yaql.language import contexts
 from yaql.language import conventions
@@ -116,7 +117,7 @@ def call_func(__context, __name, *args, **kwargs):
     return __context(__name, engine)(
         *args,
         **{CONVENTION.convert_parameter_name(key): value
-           for key, value in kwargs.iteritems()})
+           for key, value in six.iteritems(kwargs)})
 
 
 def _infer_parameter_type(name, class_name):
@@ -135,7 +136,7 @@ def _infer_parameter_type(name, class_name):
         return _infer_parameter_type(name[3 + len(class_name):], class_name)
 
 
-def get_function_definition(func):
+def get_function_definition(func, murano_method):
     body = func
     param_type_func = lambda name: _infer_parameter_type(name, None)
     is_method = False
@@ -165,6 +166,7 @@ def get_function_definition(func):
             return body(*args, **kwargs)
 
     fd.payload = payload
+    fd.meta[constants.META_MURANO_METHOD] = murano_method
     return fd
 
 
@@ -181,6 +183,7 @@ def _build_native_wrapper_function_definition(murano_method):
 
     @specs.method
     @specs.name(murano_method.name)
+    @specs.meta(constants.META_MURANO_METHOD, murano_method)
     def payload(__context, __sender, *args, **kwargs):
         executor = helpers.get_executor(__context)
         args = tuple(dsl.to_mutable(arg, engine) for arg in args)
@@ -201,7 +204,7 @@ def _build_mpl_wrapper_function_definition(murano_method):
         murano_method.name, payload, is_function=False, is_method=True)
 
     for i, (name, arg_spec) in enumerate(
-            murano_method.arguments_scheme.iteritems(), 2):
+            six.iteritems(murano_method.arguments_scheme), 2):
         p = specs.ParameterDefinition(
             name, ContractedValue(arg_spec),
             position=i, default=dsl.NO_VALUE)
@@ -213,6 +216,7 @@ def _build_mpl_wrapper_function_definition(murano_method):
     fd.set_parameter(specs.ParameterDefinition(
         '__sender', yaqltypes.PythonType(dsl_types.MuranoObject, False), 1))
 
+    fd.meta[constants.META_MURANO_METHOD] = murano_method
     return fd
 
 
@@ -248,7 +252,7 @@ def get_class_factory_definition(cls, murano_class):
 def filter_parameters(__fd, *args, **kwargs):
     if '*' not in __fd.parameters:
         position_args = 0
-        for p in __fd.parameters.itervalues():
+        for p in six.itervalues(__fd.parameters):
             if p.position is not None:
                 position_args += 1
         args = args[:position_args]
@@ -257,7 +261,7 @@ def filter_parameters(__fd, *args, **kwargs):
         if not helpers.is_keyword(name):
             del kwargs[name]
     if '**' not in __fd.parameters:
-        names = {p.alias or p.name for p in __fd.parameters.itervalues()}
+        names = {p.alias or p.name for p in six.itervalues(__fd.parameters)}
         for name in kwargs.keys():
             if name not in names:
                 del kwargs[name]

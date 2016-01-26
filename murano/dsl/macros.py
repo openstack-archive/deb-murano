@@ -13,6 +13,9 @@
 #    under the License.
 
 
+import six
+from six.moves import range
+
 from murano.dsl import constants
 from murano.dsl import dsl_exception
 from murano.dsl import exceptions
@@ -139,7 +142,7 @@ class WhileDoMacro(expressions.DslExpression):
 
 class ForMacro(expressions.DslExpression):
     def __init__(self, For, In, Do):
-        if not isinstance(For, basestring):
+        if not isinstance(For, six.string_types):
             raise exceptions.DslSyntaxError(
                 'For value must be of string type')
         self._code = CodeBlock(Do)
@@ -188,7 +191,7 @@ class MatchMacro(expressions.DslExpression):
 
     def execute(self, context):
         match_value = helpers.evaluate(self._value, context)
-        for key, value in self._switch.iteritems():
+        for key, value in six.iteritems(self._switch):
             if key == match_value:
                 CodeBlock(value).execute(context)
                 return
@@ -206,7 +209,7 @@ class SwitchMacro(expressions.DslExpression):
 
     def execute(self, context):
         matched = False
-        for key, value in self._switch.iteritems():
+        for key, value in six.iteritems(self._switch):
             if helpers.evaluate(key, context):
                 matched = True
                 CodeBlock(value).execute(context)

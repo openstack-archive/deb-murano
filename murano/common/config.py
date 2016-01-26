@@ -74,7 +74,11 @@ heat_opts = [
                                 'communicate with Heat API.'),
 
     cfg.StrOpt('endpoint_type', default='publicURL',
-               help='Heat endpoint type.')
+               help='Heat endpoint type.'),
+
+    cfg.ListOpt('stack_tags', default=['murano'],
+                help='List of tags to be assigned to heat stacks created '
+                     'during environment deployment.')
 ]
 
 mistral_opts = [
@@ -280,7 +284,6 @@ CONF.register_opts(glance_opts, group='glance')
 
 def parse_args(args=None, usage=None, default_config_files=None):
     logging.register_options(CONF)
-    logging.setup(CONF, 'murano')
     CONF(args=args,
          project='murano',
          version=version.version_string,

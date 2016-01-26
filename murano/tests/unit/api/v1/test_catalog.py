@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import cgi
-import cStringIO
 import imghdr
 import json
 import os
@@ -22,6 +21,8 @@ import uuid
 
 import mock
 from oslo_utils import timeutils
+from six.moves import cStringIO
+from six.moves import range
 
 from murano.api.v1 import catalog
 from murano.db.catalog import api as db_catalog_api
@@ -161,6 +162,120 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         result = self.controller.search(self._get(
             '/v1/catalog/packages/', params={'catalog': 'False'}))
         self.assertEqual(2, len(result['packages']))
+
+    def test_packages_filter_by_id(self):
+        """GET /catalog/packages with parameter "id" returns packages
+        filtered by id.
+        """
+        self._set_policy_rules(
+            {'get_package': '',
+             'manage_public_package': ''}
+        )
+        _, package1_data = self._test_package()
+        _, package2_data = self._test_package()
+
+        package1_data['fully_qualified_name'] += '_1'
+        package1_data['name'] += '_1'
+        package1_data['class_definitions'] = (u'test.mpl.v1.app.Thing1',)
+        package2_data['fully_qualified_name'] += '_2'
+        package2_data['name'] += '_2'
+        package2_data['class_definitions'] = (u'test.mpl.v1.app.Thing2',)
+
+        expected_package = db_catalog_api.package_upload(package1_data, '')
+        db_catalog_api.package_upload(package2_data, '')
+
+        req = self._get('/catalog/packages',
+                        params={'id': expected_package.id})
+        self.expect_policy_check('get_package')
+        self.expect_policy_check('manage_public_package')
+
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_code)
+
+        self.assertEqual(1, len(res.json['packages']))
+
+        found_package = res.json['packages'][0]
+
+        self.assertEqual(expected_package.id, found_package['id'])
+
+    def test_packages_filter_by_name(self):
+        """GET /catalog/packages with parameter "name" returns packages
+        filtered by name.
+        """
+        self._set_policy_rules(
+            {'get_package': '',
+             'manage_public_package': ''}
+        )
+
+        expected_pkg1 = self._add_pkg("test_tenant", name="test_pkgname_1")
+        expected_pkg2 = self._add_pkg("test_tenant", name="test_pkgname_2")
+
+        req_pkgname1 = self._get('/catalog/packages',
+                                 params={'name': expected_pkg1.name})
+        req_pkgname2 = self._get('/catalog/packages',
+                                 params={'name': expected_pkg2.name})
+
+        for dummy in range(2):
+            self.expect_policy_check('get_package')
+            self.expect_policy_check('manage_public_package')
+
+        res_pkgname1 = req_pkgname1.get_response(self.api)
+        self.assertEqual(200, res_pkgname1.status_code)
+        self.assertEqual(1, len(res_pkgname1.json['packages']))
+        self.assertEqual(expected_pkg1.name,
+                         res_pkgname1.json['packages'][0]['name'])
+
+        res_pkgname2 = req_pkgname2.get_response(self.api)
+        self.assertEqual(200, res_pkgname2.status_code)
+        self.assertEqual(1, len(res_pkgname2.json['packages']))
+        self.assertEqual(expected_pkg2.name,
+                         res_pkgname2.json['packages'][0]['name'])
+
+    def test_packages_filter_by_type(self):
+        """GET /catalog/packages with parameter "type" returns packages
+        filtered by type.
+        """
+        self._set_policy_rules(
+            {'get_package': '',
+             'manage_public_package': ''}
+        )
+        excepted_pkg1 = self._add_pkg("test_tenant", type='Library')
+        excepted_pkg2 = self._add_pkg("test_tenant", type='Library')
+        excepted_pkg3 = self._add_pkg("test_tenant", type='Application')
+
+        # filter by type=Library can see 2 pkgs
+        req_lib = self._get('/catalog/packages',
+                            params={'type': 'Library'})
+
+        # filter by type=Application only see 1 pkgs
+        req_app = self._get('/catalog/packages',
+                            params={'type': 'Application'})
+
+        for dummy in range(2):
+            self.expect_policy_check('get_package')
+            self.expect_policy_check('manage_public_package')
+
+        res_lib = req_lib.get_response(self.api)
+
+        self.assertEqual(200, res_lib.status_code)
+        self.assertEqual(2, len(res_lib.json['packages']))
+
+        self.assertEqual('Library', res_lib.json['packages'][0]['type'])
+        self.assertEqual(excepted_pkg1.name,
+                         res_lib.json['packages'][0]['name'])
+
+        self.assertEqual('Library', res_lib.json['packages'][1]['type'])
+        self.assertEqual(excepted_pkg2.name,
+                         res_lib.json['packages'][1]['name'])
+
+        res_app = req_app.get_response(self.api)
+
+        self.assertEqual(200, res_app.status_code)
+        self.assertEqual(1, len(res_app.json['packages']))
+
+        self.assertEqual('Application', res_app.json['packages'][0]['type'])
+        self.assertEqual(excepted_pkg3.name,
+                         res_app.json['packages'][0]['name'])
 
     def test_packages(self):
         self._set_policy_rules(
@@ -383,7 +498,7 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self.expect_policy_check('upload_package')
         self.expect_policy_check('publicize_package')
 
-        file_obj_str = cStringIO.StringIO("This is some dummy data")
+        file_obj_str = cStringIO("This is some dummy data")
         file_obj = mock.MagicMock(cgi.FieldStorage)
         file_obj.file = file_obj_str
         package_from_dir, _ = self._test_package()

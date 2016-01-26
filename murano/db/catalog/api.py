@@ -16,6 +16,7 @@ from oslo_config import cfg
 from oslo_db import api as oslo_db_api
 from oslo_db.sqlalchemy import utils
 from oslo_log import log as logging
+import six
 import sqlalchemy as sa
 from sqlalchemy import or_
 from sqlalchemy.orm import attributes
@@ -265,6 +266,7 @@ def package_search(filters, context, manage_public=False,
         request and then to use the ID of the last package from the response
         as the marker parameter in a subsequent limited request.
     """
+    # pylint: disable=too-many-branches
 
     session = db_session.get_session()
     pkg = models.Package
@@ -294,6 +296,8 @@ def package_search(filters, context, manage_public=False,
     if 'type' in filters.keys():
         query = query.filter(pkg.type == filters['type'].title())
 
+    if 'id' in filters:
+        query = query.filter(models.Package.id.in_(filters['id']))
     if 'category' in filters.keys():
         query = query.filter(pkg.categories.any(
             models.Category.name.in_(filters['category'])))
@@ -305,6 +309,8 @@ def package_search(filters, context, manage_public=False,
             models.Class.name == filters['class_name']))
     if 'fqn' in filters.keys():
         query = query.filter(pkg.fully_qualified_name == filters['fqn'])
+    if 'name' in filters.keys():
+        query = query.filter(pkg.name == filters['name'])
 
     if 'search' in filters.keys():
         fk_fields = {'categories': 'Category',
@@ -372,7 +378,7 @@ def package_upload(values, tenant_id):
             _check_for_public_packages_with_fqn(
                 session,
                 values.get('fully_qualified_name'))
-        for attr, func in composite_attr_to_func.iteritems():
+        for attr, func in six.iteritems(composite_attr_to_func):
             if values.get(attr):
                 result = func(values[attr], session)
                 setattr(package, attr, result)

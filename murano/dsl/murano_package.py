@@ -16,6 +16,7 @@ import inspect
 import weakref
 
 import semantic_version
+import six
 
 from murano.dsl import constants
 from murano.dsl import dsl_types
@@ -28,6 +29,7 @@ from murano.dsl import yaql_integration
 
 
 class MuranoPackage(dsl_types.MuranoPackage):
+
     def __init__(self, package_loader, name, version=None,
                  runtime_version=None, requirements=None):
         super(MuranoPackage, self).__init__()
@@ -43,7 +45,7 @@ class MuranoPackage(dsl_types.MuranoPackage):
                 semantic_version.Spec('==0')
         self._classes = {}
         self._imported_types = {object, murano_object.MuranoObject}
-        for key, value in (requirements or {}).iteritems():
+        for key, value in six.iteritems(requirements or {}):
             self._requirements[key] = helpers.parse_version_spec(value)
 
         self._load_queue = {}
@@ -73,9 +75,8 @@ class MuranoPackage(dsl_types.MuranoPackage):
 
     @property
     def classes(self):
-        return set(self._classes.keys() +
-                   self._load_queue.keys() +
-                   self._native_load_queue.keys())
+        return set(self._classes.keys()).union(
+            self._load_queue.keys()).union(self._native_load_queue.keys())
 
     def get_resource(self, name):
         raise NotImplementedError('resource API is not implemented')
@@ -145,7 +146,8 @@ class MuranoPackage(dsl_types.MuranoPackage):
             return result
         if search_requirements:
             pkgs_for_search = []
-            for package_name, version_spec in self._requirements.iteritems():
+            for package_name, version_spec in six.iteritems(
+                    self._requirements):
                 if package_name == self.name:
                     continue
                 referenced_package = self._package_loader.load_package(

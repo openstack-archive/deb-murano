@@ -18,6 +18,7 @@
 import datetime
 import errno
 import re
+import six
 import socket
 import sys
 import time
@@ -29,7 +30,6 @@ import eventlet.wsgi
 import jsonschema
 from oslo_config import cfg
 from oslo_log import log as logging
-from oslo_log import loggers
 from oslo_serialization import jsonutils
 from oslo_service import service
 from oslo_service import sslutils
@@ -80,6 +80,7 @@ class Service(service.Service):
         self._port = port
         self._host = host
         self._backlog = backlog if backlog else CONF.backlog
+        self._logger = logging.getLogger('eventlet.wsgi')
         super(Service, self).__init__(threads)
 
     def _get_socket(self, host, port, backlog):
@@ -160,12 +161,11 @@ class Service(service.Service):
 
     def _run(self, application, socket):
         """Start a WSGI server in a new green thread."""
-        logger = logging.getLogger('eventlet.wsgi')
         eventlet.wsgi.MAX_HEADER_LINE = CONF.max_header_line
         eventlet.wsgi.server(socket,
                              application,
                              custom_pool=self.tg.pool,
-                             log=loggers.WritableLogger(logger))
+                             log=self._logger)
 
 
 class Middleware(object):
@@ -214,7 +214,7 @@ class Debug(Middleware):
         resp = req.get_response(self.application)
 
         print(("*" * 40) + " RESPONSE HEADERS")
-        for (key, value) in resp.headers.iteritems():
+        for (key, value) in six.iteritems(resp.headers):
             print(key, "=", value)
         print("")
 
@@ -477,7 +477,7 @@ class Resource(object):
                           "X-User-Id",
                           "X-Tenant-Id")
 
-        for header, value in headers.iteritems():
+        for header, value in six.iteritems(headers):
             if header.startswith("X-") and header not in useful_headers:
                 continue
             string_parts.append("{0}: {1}".format(header, value))
@@ -516,7 +516,7 @@ class JSONDictSerializer(DictSerializer):
             if isinstance(obj, datetime.datetime):
                 _dtime = obj - datetime.timedelta(microseconds=obj.microsecond)
                 return _dtime.isoformat()
-            return unicode(obj)
+            return six.text_type(obj)
         if result:
             data.body = jsonutils.dumps(result)
         return jsonutils.dumps(data, default=sanitizer)
@@ -535,7 +535,7 @@ class XMLDictSerializer(DictSerializer):
 
     def default(self, data, result=None):
         # We expect data to contain a single key which is the XML root.
-        root_key = data.keys()[0]
+        root_key = list(data.keys())[0]
         doc = minidom.Document()
         node = self._to_xml_node(doc, self.metadata, root_key, data[root_key])
 
@@ -883,7 +883,7 @@ class JSONPatchDeserializer(TextDeserializer):
 
         if not allowed_methods:
             msg = _("Attribute '{0}' is invalid").format(change_path)
-            raise webob.exc.HTTPForbidden(explanation=unicode(msg))
+            raise webob.exc.HTTPForbidden(explanation=six.text_type(msg))
 
         if change_op not in allowed_methods:
             msg = _("Method '{method}' is not allowed for a path with name "
@@ -892,7 +892,7 @@ class JSONPatchDeserializer(TextDeserializer):
                                       name=change_path,
                                       ops=', '.join(allowed_methods))
 
-            raise webob.exc.HTTPForbidden(explanation=unicode(msg))
+            raise webob.exc.HTTPForbidden(explanation=six.text_type(msg))
 
         property_to_update = {change_path: change['value']}
 
@@ -1039,7 +1039,7 @@ class FormDataDeserializer(TextDeserializer):
 
     def default(self, request):
         form_data_parts = request.POST
-        for key, value in form_data_parts.iteritems():
-            if isinstance(value, basestring):
+        for key, value in six.iteritems(form_data_parts):
+            if isinstance(value, six.string_types):
                 form_data_parts[key] = self._from_json(value)
         return {'body': form_data_parts}
