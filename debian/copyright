@@ -2,17 +2,16 @@ Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Murano
 Source: git://github.com/stackforge/murano.git
 
-Files: debian/*
-Copyright: (c) 2014, Thomas Goirand <zigo@debian.org>
-License: Apache-2
-
 Files: *
-Copyright: (c) 2010-2012, OpenStack, LLC.
-           (c) 2012-2014, OpenStack Foundation
-           (c) 2013-2014, Mirantis
+Copyright: (c) 2010-2016, OpenStack Foundation <openstack-dev@lists.openstack.org>
+           (c) 2013-2016, Mirantis
            (c) 2013-2014, cloudenablers
            (c) 2013-2014, b1 systems
            (c) 2012-2014, Hewlett-Packard Development Company, L.P.
+License: Apache-2
+
+Files: debian/*
+Copyright: (c) 2014-2016, Thomas Goirand <zigo@debian.org>
 License: Apache-2
 
 License: Apache-2
