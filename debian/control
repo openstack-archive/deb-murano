@@ -76,8 +76,8 @@ Build-Depends-Indep: alembic (>= 0.8.0),
                      zip,
 Standards-Version: 3.9.6
 Homepage: https://github.com/openstack/murano
-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=openstack/murano.git;a=summary
-Vcs-Git: git://anonscm.debian.org/openstack/murano.git
+Vcs-Browser: https://anonscm.debian.org/cgit/openstack/murano.git/
+Vcs-Git: https://anonscm.debian.org/git/openstack/murano.git
 
 Package: python-murano
 Architecture: all
