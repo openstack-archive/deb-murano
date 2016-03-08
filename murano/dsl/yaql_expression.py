@@ -13,14 +13,17 @@
 #    under the License.
 
 import re
-import six
 
+import six
 from yaql.language import exceptions as yaql_exceptions
 from yaql.language import expressions
 
 from murano.dsl import constants
 from murano.dsl import dsl_types
 from murano.dsl import yaql_integration
+
+
+EXPRESSION_REGEX = re.compile('^[\s\w\d.]*$')
 
 
 class YaqlExpression(dsl_types.YaqlExpression):
@@ -68,7 +71,7 @@ class YaqlExpression(dsl_types.YaqlExpression):
     def is_expression(expression, version):
         if not isinstance(expression, six.string_types):
             return False
-        if re.match('^[\s\w\d.:]*$', expression):
+        if EXPRESSION_REGEX.match(expression):
             return False
         try:
             yaql_integration.parse(expression, version)

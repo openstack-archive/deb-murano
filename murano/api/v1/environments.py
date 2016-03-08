@@ -12,10 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six
-
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
+import six
 from sqlalchemy import desc
 from webob import exc
 
@@ -73,7 +72,7 @@ class Controller(object):
         name = six.text_type(body['name'])
         if len(name) > 255:
             msg = _('Environment name should be 255 characters maximum')
-            LOG.exception(msg)
+            LOG.error(msg)
             raise exc.HTTPBadRequest(explanation=msg)
         try:
             environment = envs.EnvironmentServices.create(
@@ -81,7 +80,7 @@ class Controller(object):
                 request.context)
         except db_exc.DBDuplicateEntry:
             msg = _('Environment with specified name already exists')
-            LOG.exception(msg)
+            LOG.error(msg)
             raise exc.HTTPConflict(explanation=msg)
 
         return environment.to_dict()
@@ -130,7 +129,12 @@ class Controller(object):
 
         session = db_session.get_session()
         environment = session.query(models.Environment).get(environment_id)
-        if str(body['name']).strip():
+        new_name = six.text_type(body['name'])
+        if new_name.strip():
+            if len(new_name) > 255:
+                msg = _('Environment name should be 255 characters maximum')
+                LOG.error(msg)
+                raise exc.HTTPBadRequest(explanation=msg)
             try:
                 environment.update(body)
                 environment.save(session)

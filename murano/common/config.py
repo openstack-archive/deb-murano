@@ -58,6 +58,8 @@ rabbit_opts = [
 ]
 
 heat_opts = [
+    cfg.StrOpt('url', help='Optional heat endpoint override'),
+
     cfg.BoolOpt('insecure', default=False,
                 help='This option explicitly allows Murano to perform '
                 '"insecure" SSL connections and transfers with Heat API.'),
@@ -82,13 +84,26 @@ heat_opts = [
 ]
 
 mistral_opts = [
+    cfg.StrOpt('url', help='Optional mistral endpoint override'),
+
     cfg.StrOpt('endpoint_type', default='publicURL',
                help='Mistral endpoint type.'),
+
     cfg.StrOpt('service_type', default='workflowv2',
-               help='Mistral service type.')
+               help='Mistral service type.'),
+
+    cfg.BoolOpt('insecure', default=False,
+                help='This option explicitly allows Murano to perform '
+                '"insecure" SSL connections and transfers with Mistral.'),
+
+    cfg.StrOpt('ca_cert',
+               help='(SSL) Tells Murano to use the specified client '
+               'certificate file when communicating with Mistral.')
 ]
 
 neutron_opts = [
+    cfg.StrOpt('url', help='Optional neutron endpoint override'),
+
     cfg.BoolOpt('insecure', default=False,
                 help='This option explicitly allows Murano to perform '
                 '"insecure" SSL connections and transfers with Neutron API.'),
@@ -99,24 +114,6 @@ neutron_opts = [
 
     cfg.StrOpt('endpoint_type', default='publicURL',
                help='Neutron endpoint type.')
-]
-
-keystone_opts = [
-    cfg.BoolOpt('insecure', default=False,
-                help='This option explicitly allows Murano to perform '
-                     '"insecure" SSL connections and transfers with '
-                     'Keystone API running Kyestone API.'),
-
-    cfg.StrOpt('ca_file',
-               help='(SSL) Tells Murano to use the specified certificate file '
-                    'to verify the peer when communicating with Keystone.'),
-
-    cfg.StrOpt('cert_file',
-               help='(SSL) Tells Murano to use the specified client '
-                    'certificate file when communicating with Keystone.'),
-
-    cfg.StrOpt('key_file', help='(SSL/SSH) Private key file name to '
-                                'communicate with Keystone API')
 ]
 
 murano_opts = [
@@ -148,10 +145,7 @@ murano_opts = [
     cfg.ListOpt('enabled_plugins',
                 help="List of enabled Extension Plugins. "
                      "Remove or leave commented to enable all installed "
-                     "plugins."),
-
-    cfg.StrOpt('region_name_for_services',
-               help="Default region name used to get services endpoints.")
+                     "plugins.")
 ]
 
 networking_opts = [
@@ -205,9 +199,8 @@ engine_opts = [
     cfg.IntOpt('agent_timeout', default=3600,
                help=_('Time for waiting for a response from murano agent '
                       'during the deployment')),
-    cfg.ListOpt('load_packages_from', default=[],
-                help=_('List of directories to load local packages from. '
-                       'If not provided, packages will be loaded by API'))
+    cfg.IntOpt('workers',
+               help=_('Number of workers'))
 ]
 
 # TODO(sjmc7): move into engine opts?
@@ -219,6 +212,16 @@ metadata_dir = [
 packages_opts = [
     cfg.StrOpt('packages_cache',
                help='Location (directory) for Murano package cache.'),
+
+    cfg.BoolOpt('enable_packages_cache', default=True,
+                help=_('Enables murano-engine to persist on disk '
+                       'packages downloaded during deployments. '
+                       'The packages would be re-used for consequent '
+                       'deployments.')),
+
+    cfg.ListOpt('load_packages_from', default=[],
+                help=_('List of directories to load local packages from. '
+                       'If not provided, packages will be loaded only API')),
 
     cfg.IntOpt('package_size_limit', default=5,
                help='Maximum application package size, Mb'),
@@ -233,36 +236,47 @@ packages_opts = [
     cfg.StrOpt('packages_service', default='murano',
                help=_('The service to store murano packages: murano (stands '
                       'for legacy behavior using murano-api) or glance '
-                      '(stands for Glance V3 artifact repository)'))
+                      '(stands for glance-glare artifact service)'))
 ]
 
-glance_opts = [
-    cfg.StrOpt('url', help='Optional murano url in format '
-                           'like http://0.0.0.0:9292 used by Glance API'),
+glare_opts = [
+    cfg.StrOpt('url', help='Optional glare url in format '
+                           'like http://0.0.0.0:9494 used by Glare API',
+               deprecated_group='glance'),
 
     cfg.BoolOpt('insecure', default=False,
                 help='This option explicitly allows Murano to perform '
-                '"insecure" SSL connections and transfers with Glance API.'),
+                '"insecure" SSL connections and transfers with Glare API.',
+                deprecated_group='glance'),
 
     cfg.StrOpt('ca_file',
                help='(SSL) Tells Murano to use the specified certificate file '
-               'to verify the peer running Glance API.'),
+               'to verify the peer running Glare API.',
+               deprecated_group='glance'),
 
     cfg.StrOpt('cert_file',
                help='(SSL) Tells Murano to use the specified client '
-               'certificate file when communicating with Glance.'),
+               'certificate file when communicating with Glare.',
+               deprecated_group='glance'),
 
     cfg.StrOpt('key_file', help='(SSL/SSH) Private key file name to '
-                                'communicate with Glance API.'),
+                                'communicate with Glare API.',
+               deprecated_group='glance'),
 
     cfg.StrOpt('endpoint_type', default='publicURL',
-               help='Glance endpoint type.')
+               help='Glare endpoint type.',
+               deprecated_group='glance')
 ]
 
 file_server = [
     cfg.StrOpt('file_server', default='',
                help='Set a file server.')
 ]
+
+home_region = cfg.StrOpt(
+    'home_region', default=None,
+    help="Default region name used to get services endpoints.")
+
 
 CONF = cfg.CONF
 CONF.register_opts(paste_deploy_opts, group='paste_deploy')
@@ -271,15 +285,15 @@ CONF.register_opts(rabbit_opts, group='rabbitmq')
 CONF.register_opts(heat_opts, group='heat')
 CONF.register_opts(mistral_opts, group='mistral')
 CONF.register_opts(neutron_opts, group='neutron')
-CONF.register_opts(keystone_opts, group='keystone')
 CONF.register_opts(murano_opts, group='murano')
 CONF.register_opts(engine_opts, group='engine')
 CONF.register_opts(file_server)
+CONF.register_opt(home_region)
 CONF.register_cli_opts(metadata_dir)
 CONF.register_opts(packages_opts, group='packages_opts')
 CONF.register_opts(stats_opts, group='stats')
 CONF.register_opts(networking_opts, group='networking')
-CONF.register_opts(glance_opts, group='glance')
+CONF.register_opts(glare_opts, group='glare')
 
 
 def parse_args(args=None, usage=None, default_config_files=None):

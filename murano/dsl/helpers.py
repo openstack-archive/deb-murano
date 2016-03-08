@@ -15,16 +15,19 @@
 import collections
 import contextlib
 import functools
+import inspect
+import itertools
 import re
-import string
 import sys
 import uuid
+import weakref
+
 
 import eventlet.greenpool
 import eventlet.greenthread
 import semantic_version
 import six
-from six.moves import reduce
+from yaql.language import contexts
 import yaql.language.exceptions
 import yaql.language.expressions
 from yaql.language import utils as yaqlutils
@@ -34,8 +37,6 @@ from murano.common import utils
 from murano.dsl import constants
 from murano.dsl import dsl_types
 from murano.dsl import exceptions
-
-KEYWORD_REGEX = re.compile(r'^(?!__)\b[^\W\d]\w*\b$')
 
 _threads_sequencer = 0
 
@@ -111,10 +112,14 @@ def generate_id():
 def parallel_select(collection, func, limit=1000):
     # workaround for eventlet issue 232
     # https://github.com/eventlet/eventlet/issues/232
+    context = get_context()
+    session = get_execution_session()
+
     def wrapper(element):
         try:
-            with contextual(get_context()):
-                return func(element), False, None
+            with contextual(context):
+                with execution_session(session):
+                    return func(element), False, None
         except Exception as e:
             return e, True, sys.exc_info()[2]
 
@@ -125,7 +130,7 @@ def parallel_select(collection, func, limit=1000):
     except StopIteration:
         return map(lambda t: t[0], result)
     else:
-        raise exception[0], None, exception[2]
+        six.reraise(exception[0], None, exception[2])
 
 
 def enum(**enums):
@@ -134,7 +139,7 @@ def enum(**enums):
 
 def get_context():
     current_thread = eventlet.greenthread.getcurrent()
-    return getattr(current_thread, '__murano_context', None)
+    return getattr(current_thread, constants.TL_CONTEXT, None)
 
 
 def get_executor(context=None):
@@ -148,14 +153,22 @@ def get_type(context=None):
     return context[constants.CTX_TYPE]
 
 
-def get_environment(context=None):
+def get_execution_session(context=None):
     context = context or get_context()
-    return context[constants.CTX_ENVIRONMENT]
+    session = None
+    if context is not None:
+        session = context[constants.CTX_EXECUTION_SESSION]
+    if session is None:
+        current_thread = eventlet.greenthread.getcurrent()
+        session = getattr(current_thread, constants.TL_SESSION, None)
+    return session
 
 
 def get_object_store(context=None):
     context = context or get_context()
-    return context[constants.CTX_THIS].object_store
+    this = context[constants.CTX_THIS]
+    return this.object_store if isinstance(
+        this, dsl_types.MuranoObject) else None
 
 
 def get_package_loader(context=None):
@@ -205,41 +218,53 @@ def are_property_modifications_allowed(context=None):
     return context[constants.CTX_ALLOW_PROPERTY_WRITES] or False
 
 
+def get_names_scope(context=None):
+    context = context or get_context()
+    return context[constants.CTX_NAMES_SCOPE]
+
+
 def get_class(name, context=None):
     context = context or get_context()
-    murano_class = get_type(context)
-    return murano_class.package.find_class(name)
-
-
-def is_keyword(text):
-    return KEYWORD_REGEX.match(text) is not None
+    murano_type = get_names_scope(context)
+    name = murano_type.namespace_resolver.resolve_name(name)
+    return murano_type.package.find_class(name)
 
 
 def get_current_thread_id():
     global _threads_sequencer
 
     current_thread = eventlet.greenthread.getcurrent()
-    thread_id = getattr(current_thread, '__thread_id', None)
+    thread_id = getattr(current_thread, constants.TL_ID, None)
     if thread_id is None:
         thread_id = 'T' + str(_threads_sequencer)
         _threads_sequencer += 1
-        setattr(current_thread, '__thread_id', thread_id)
+        setattr(current_thread, constants.TL_ID, thread_id)
     return thread_id
 
 
 @contextlib.contextmanager
-def contextual(ctx):
+def thread_local_attribute(name, value):
     current_thread = eventlet.greenthread.getcurrent()
-    current_context = getattr(current_thread, '__murano_context', None)
-    if ctx:
-        setattr(current_thread, '__murano_context', ctx)
+    old_value = getattr(current_thread, name, None)
+    if value is not None:
+        setattr(current_thread, name, value)
+    elif hasattr(current_thread, name):
+        delattr(current_thread, name)
     try:
         yield
     finally:
-        if current_context:
-            setattr(current_thread, '__murano_context', current_context)
-        elif hasattr(current_thread, '__murano_context'):
-            delattr(current_thread, '__murano_context')
+        if old_value is not None:
+            setattr(current_thread, name, old_value)
+        elif hasattr(current_thread, name):
+            delattr(current_thread, name)
+
+
+def contextual(ctx):
+    return thread_local_attribute(constants.TL_CONTEXT, ctx)
+
+
+def execution_session(session):
+    return thread_local_attribute(constants.TL_SESSION, session)
 
 
 def parse_version_spec(version_spec):
@@ -250,7 +275,7 @@ def parse_version_spec(version_spec):
             semantic_version.Spec('==' + str(version_spec)))
     if not version_spec:
         version_spec = '0'
-    version_spec = str(version_spec).translate(None, string.whitespace)
+    version_spec = re.sub('\s+', '', str(version_spec))
     if version_spec[0].isdigit():
         version_spec = '==' + str(version_spec)
     version_spec = semantic_version.Spec(version_spec)
@@ -286,17 +311,20 @@ def traverse(seed, producer=None, track_visited=True):
 def cast(obj, murano_class, pov_or_version_spec=None):
     if isinstance(obj, dsl_types.MuranoObjectInterface):
         obj = obj.object
-    if isinstance(pov_or_version_spec, dsl_types.MuranoClass):
+    if isinstance(pov_or_version_spec, dsl_types.MuranoType):
         pov_or_version_spec = pov_or_version_spec.package
     elif isinstance(pov_or_version_spec, six.string_types):
         pov_or_version_spec = parse_version_spec(pov_or_version_spec)
-    if isinstance(murano_class, dsl_types.MuranoClass):
+
+    if isinstance(murano_class, dsl_types.MuranoTypeReference):
+        murano_class = murano_class.type
+    if isinstance(murano_class, dsl_types.MuranoType):
         if pov_or_version_spec is None:
             pov_or_version_spec = parse_version_spec(murano_class.version)
         murano_class = murano_class.name
 
     candidates = []
-    for cls in obj.type.ancestors():
+    for cls in itertools.chain((obj.type,), obj.type.ancestors()):
         if cls.name != murano_class:
             continue
         elif isinstance(pov_or_version_spec, semantic_version.Version):
@@ -331,17 +359,12 @@ def is_instance_of(obj, class_name, pov_or_version_spec=None):
         return False
 
 
-def filter_parameters_dict(parameters):
-    parameters = parameters.copy()
-    for name in parameters.keys():
-        if not is_keyword(name):
-            del parameters[name]
-    return parameters
-
-
 def memoize(func):
     cache = {}
+    return get_memoize_func(func, cache)
 
+
+def get_memoize_func(func, cache):
     @functools.wraps(func)
     def wrap(*args):
         if args not in cache:
@@ -392,7 +415,7 @@ def normalize_version_spec(version_spec):
             for op, funcs in transformations[item.kind]:
                 new_parts.append('{0}{1}'.format(
                     op,
-                    reduce(lambda v, f: f(v), funcs, item.spec)
+                    six.moves.reduce(lambda v, f: f(v), funcs, item.spec)
                 ))
     if not new_parts:
         return semantic_version.Spec('*')
@@ -418,3 +441,124 @@ def breakdown_spec_to_query(normalized_spec):
             res.append("%s:%s" % (semver_to_api_map[item.kind],
                                   item.spec))
     return res
+
+
+def link_contexts(parent_context, context):
+    if not context:
+        return parent_context
+    return contexts.LinkedContext(parent_context, context)
+
+
+def inspect_is_static(cls, name):
+    m = cls.__dict__.get(name)
+    if m is None:
+        return False
+    return isinstance(m, staticmethod)
+
+
+def inspect_is_classmethod(cls, name):
+    m = cls.__dict__.get(name)
+    if m is None:
+        return False
+    return isinstance(m, classmethod)
+
+
+def inspect_is_method(cls, name):
+    m = getattr(cls, name, None)
+    if m is None:
+        return False
+    return ((inspect.isfunction(m) or inspect.ismethod(m)) and not
+            inspect_is_static(cls, name) and not
+            inspect_is_classmethod(cls, name))
+
+
+def inspect_is_property(cls, name):
+    m = getattr(cls, name, None)
+    if m is None:
+        return False
+    return inspect.isdatadescriptor(m)
+
+
+def updated_dict(d, val):
+    if d is None:
+        d = {}
+    else:
+        d = d.copy()
+    if val is not None:
+        d.update(val)
+    return d
+
+
+def resolve_type(value, scope_type, return_reference=False):
+    if value is None:
+        return None
+    if isinstance(scope_type, dsl_types.MuranoTypeReference):
+        scope_type = scope_type.type
+    if not isinstance(value, (dsl_types.MuranoType,
+                              dsl_types.MuranoTypeReference)):
+        name = scope_type.namespace_resolver.resolve_name(value)
+        result = scope_type.package.find_class(name)
+    else:
+        result = value
+
+    if isinstance(result, dsl_types.MuranoTypeReference):
+        if return_reference:
+            return result
+        return result.type
+    elif return_reference:
+        return result.get_reference()
+    return result
+
+
+def instantiate(data, owner, object_store, context, scope_type,
+                default_type=None, defaults=None):
+    if data is None:
+        data = {}
+    if not isinstance(data, yaqlutils.MappingType):
+        raise ValueError('Incorrect object initialization format')
+    default_type = resolve_type(default_type, scope_type)
+    if len(data) == 1:
+        key = next(iter(data.keys()))
+        ns_resolver = scope_type.namespace_resolver
+        if ns_resolver.is_typename(key, False) or isinstance(
+                key, (dsl_types.MuranoTypeReference, dsl_types.MuranoType)):
+            type_obj = resolve_type(key, scope_type)
+            props = yaqlutils.filter_parameters_dict(data[key] or {})
+            return type_obj.new(
+                owner, object_store, object_store.executor)(
+                context, **props)
+
+    data = updated_dict(defaults, data)
+    if '?' not in data:
+        if not default_type:
+            raise ValueError('Type information is missing')
+        data.update({'?': {
+            'type': default_type.name,
+            'classVersion': str(default_type.version)
+        }})
+    if 'id' not in data['?']:
+        data['?']['id'] = uuid.uuid4().hex
+
+    return object_store.load(data, owner, context)
+
+
+def function(c):
+    if hasattr(c, 'im_func'):
+        return c.im_func
+    return c
+
+
+def list_value(v):
+    if v is None:
+        return []
+    if not yaqlutils.is_sequence(v):
+        v = [v]
+    return v
+
+
+def weak_proxy(obj):
+    if obj is None or isinstance(obj, weakref.ProxyType):
+        return obj
+    if isinstance(obj, weakref.ReferenceType):
+        obj = obj()
+    return weakref.proxy(obj)

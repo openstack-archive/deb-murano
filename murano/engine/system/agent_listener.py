@@ -15,7 +15,6 @@
 
 import eventlet
 import greenlet
-
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -67,7 +66,7 @@ class AgentListener(object):
             return
 
         if self._receive_thread is None:
-            helpers.get_environment().on_session_finish(
+            helpers.get_execution_session().on_session_finish(
                 lambda: self.stop())
             self._receive_thread = eventlet.spawn(self._receive)
 

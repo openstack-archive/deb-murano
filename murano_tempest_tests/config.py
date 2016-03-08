@@ -22,6 +22,10 @@ ServiceAvailableGroup = [
     cfg.BoolOpt("murano",
                 default=True,
                 help="Whether or not murano is expected to be available"),
+    cfg.BoolOpt("murano_cfapi",
+                default=False,
+                help="Whether or not murano-cfapi is expected to be "
+                     "unavailable by default")
 ]
 
 application_catalog_group = cfg.OptGroup(name="application_catalog",
@@ -31,18 +35,13 @@ service_broker_group = cfg.OptGroup(name="service_broker",
                                          title="Service Broker Options")
 
 ApplicationCatalogGroup = [
-    # Aplication catalog tempest configuration
+    # Application catalog tempest configuration
     cfg.StrOpt("region",
                default="",
                help="The application_catalog region name to use. If empty, "
                     "the value of identity.region is used instead. "
                     "If no such region is found in the service catalog, "
                     "the first found one is used."),
-
-    cfg.StrOpt("identity_version",
-               default="v2",
-               help="Default identity version for "
-                    "REST client authentication."),
 
     cfg.StrOpt("catalog_type",
                default="application-catalog",
@@ -69,11 +68,6 @@ ServiceBrokerGroup = [
     cfg.StrOpt("run_service_broker_tests",
                default=False,
                help="Defines whether run service broker api tests or not"),
-
-    cfg.StrOpt("identity_version",
-               default="v2",
-               help="Default identity version for "
-                    "REST client authentication."),
 
     cfg.StrOpt("catalog_type",
                default="service-broker",

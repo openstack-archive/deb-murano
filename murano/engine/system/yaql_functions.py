@@ -17,13 +17,12 @@ import base64
 import collections
 import random
 import re
-import six
-from six.moves import range
 import string
 import time
 
 import jsonpatch
 import jsonpointer
+import six
 from yaql.language import specs
 from yaql.language import utils
 from yaql.language import yaqltypes
@@ -134,7 +133,7 @@ def _int2base(x, base):
     :param base: number base, max value is 36
     :return: integer converted to the specified base
     """
-    digs = string.digits + string.lowercase
+    digs = string.digits + string.ascii_lowercase
     if x < 0:
         sign = -1
     elif x == 0:
@@ -145,7 +144,7 @@ def _int2base(x, base):
     digits = []
     while x:
         digits.append(digs[x % base])
-        x /= base
+        x //= base
     if sign < 0:
         digits.append('-')
     digits.reverse()
@@ -164,7 +163,7 @@ def random_name():
 
     counter = _random_string_counter or 1
     # generate first 5 random chars
-    prefix = ''.join(random.choice(string.lowercase) for _ in range(5))
+    prefix = ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
     # convert timestamp to higher base to shorten hostname string
     # (up to 8 chars)
     timestamp = _int2base(int(time.time() * 1000), 36)[:8]

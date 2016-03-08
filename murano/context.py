@@ -12,8 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from murano.common import policy
 from oslo_context import context
+
+from murano.common import policy
 
 
 class RequestContext(context.RequestContext):
@@ -33,3 +34,8 @@ class RequestContext(context.RequestContext):
         self.is_admin = is_admin
         if self.is_admin is None:
             self.is_admin = policy.check_is_admin(self)
+
+    def to_dict(self):
+        d = super(RequestContext, self).to_dict()
+        d.setdefault('roles', self.roles)
+        return d

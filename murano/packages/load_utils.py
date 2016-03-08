@@ -19,6 +19,7 @@ import sys
 import tempfile
 import zipfile
 
+import six
 import yaml
 
 from murano.common.plugins import package_types_loader
@@ -35,7 +36,7 @@ def get_plugin_loader():
 
     if PLUGIN_LOADER is None:
         PLUGIN_LOADER = package_types_loader.PluginLoader()
-        for runtime_version in ('1.0', '1.1', '1.2'):
+        for runtime_version in ('1.0', '1.1', '1.2', '1.3'):
             format_string = 'MuranoPL/' + runtime_version
             PLUGIN_LOADER.register_format(
                 format_string, murano.packages.mpl_package.MuranoPlPackage)
@@ -53,7 +54,7 @@ def load_from_file(archive_path, target_dir=None, drop_dir=False):
         target_dir = tempfile.mkdtemp()
         created = True
     elif not os.path.exists(target_dir):
-        os.mkdir(target_dir)
+        os.makedirs(target_dir)
         created = True
     else:
         if os.listdir(target_dir):
@@ -91,9 +92,11 @@ def load_from_dir(source_directory, filename='manifest.yaml'):
             content = yaml.safe_load(stream)
     except Exception as ex:
         trace = sys.exc_info()[2]
-        raise e.PackageLoadError(
-            "Unable to load due to '{0}'".format(str(ex))), None, trace
-    if content:
+        six.reraise(
+            e.PackageLoadError,
+            e.PackageLoadError("Unable to load due to '{0}'".format(ex)),
+            trace)
+    else:
         format_spec = str(content.get('Format') or 'MuranoPL/1.0')
         if format_spec[0].isdigit():
             format_spec = 'MuranoPL/' + format_spec

@@ -25,7 +25,8 @@ Properties:
   flavor:
     Contract: $.string().notNull()
   image:
-    Contract: $.string().notNull()
+    Contract: $.string()
+    Default: null
   keyname:
     Contract: $.string()
     Default: null
@@ -68,6 +69,13 @@ Properties:
   volumes:
     Contract:
       $.string().notNull(): $.class(Volume).notNull()
+  blockDevices:
+    Contract:
+      - volume: $.class(Volume).notNull()
+        deviceName: $.string()
+        deviceType: $.string().check($ in list(disk, cdrom, null))
+        bootIndex: $.int()
+    Default: []
 
 Methods:
   initialize:
@@ -97,6 +105,7 @@ Methods:
 
   deploy:
     Body:
+      - $.validateBootSource()
       - $securityGroupName: coalesce(
             $.securityGroupName,
             $.environment.securityGroupManager.defaultGroupName
@@ -114,21 +123,28 @@ Methods:
       - $.networks.customNetworks.select($this.joinNet($, $securityGroupName))
 
       - $preparedUserData: $.prepareUserData()
-      - $userData: $preparedUserData.data
-      - $userDataFormat: $preparedUserData.format
       # Create MQ queue to communicate with the VM
       - $.agent.prepare()
+      - $properties:
+          flavor: $.flavor
+          availability_zone: $.availabilityZone
+          user_data: $preparedUserData.data
+          user_data_format: $preparedUserData.format
+          key_name: $.keyname
+
+      - If: len($.blockDevices) > 0
+        Then:
+          - $bdmDefinition: $.blockDevices.select($this.buidBlockDeviceDefinition($))
+          - $properties.block_device_mapping_v2: $bdmDefinition
+        Else:
+          $properties.image: $.image
+
       - $template:
           resources:
             $.name:
               type: 'OS::Nova::Server'
-              properties:
-                flavor: $.flavor
-                image: $.image
-                availability_zone: $.availabilityZone
-                user_data: $userData
-                user_data_format: $userDataFormat
-                key_name: $.keyname
+              properties: $properties
+
           outputs:
             format('{0}-assigned-ips', $.name):
               description: format('Network IPs assigned to {0} instance', $.name)
@@ -142,12 +158,6 @@ Methods:
       - $.instanceTemplate: $.instanceTemplate.mergeWith($template)
       - $.volumes.items().select(
           $.unpack(path, volume) -> $this.attachVolume($path, $volume))
-
-      - For: path
-        In: $.volumes
-        Do:
-          - $volume: $.volumes.get($path)
-          - $this.attachVolume($path, $volume)
 
       # Any additional template preparation
       - $.instanceTemplate: $.prepareStackTemplate($.instanceTemplate)
@@ -256,6 +266,23 @@ Methods:
       - $.setAttr(instanceResources, $.getAttr(instanceResources, []).concat($attachment.get(instanceResources, [])))
       - $.setAttr(instanceOutputs, $.getAttr(instanceOutputs, []).concat($attachment.get(instanceOutputs, [])))
 
+  buidBlockDeviceDefinition:
+    Arguments:
+      blockDevice:
+        Contract:
+          volume: $.class(Volume).notNull()
+          deviceName: $.string()
+          deviceType: $.string().check($ in list(disk, cdrom, null))
+          bootIndex: $.int()
+
+    Body:
+      - $blockDevice.volume.deploy()
+      - Return:
+          device_name: $blockDevice.deviceName
+          volume_id: $blockDevice.volume.getRef()
+          device_type: $blockDevice.deviceType
+          boot_index: $blockDevice.bootIndex
+
   releaseResources:
     Body:
       - $template: $.environment.stack.current()
@@ -278,6 +305,22 @@ Methods:
       - $.setAttr(instanceResources, [])
       - $.setAttr(instanceOutputs, [])
       - $.setAttr(fipAssigned, false)
+      - $.openstackId: null
+      - $.ipAddresses: []
+      - $.floatingIpAddress: null
+
+  validateBootSource:
+    Body:
+      - If: $.image = null and len($.blockDevices) = 0
+        Then:
+          - $msg: format('Neither image nor bootable volumes is specified for instance {0}', $.name)
+          - Throw: ResourceNotFound
+            Message: $msg
+      - If: $.image != null and len($.blockDevices) > 0
+        Then:
+          - $msg: 'Both image and list of bootable volumes are specified'
+          - Throw: ResourceConflict
+            Message: $msg
 
   destroy:
     Body:

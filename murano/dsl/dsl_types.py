@@ -13,7 +13,59 @@
 #    under the License.
 
 
-class MuranoClass(object):
+class ClassUsages(object):
+    Class = 'Class'
+    Meta = 'Meta'
+    All = {Class, Meta}
+
+
+class MetaCardinality(object):
+    One = 'One'
+    Many = 'Many'
+    All = {One, Many}
+
+
+class MetaTargets(object):
+    Package = 'Package'
+    Type = 'Type'
+    Property = 'Property'
+    Method = 'Method'
+    Argument = 'Argument'
+    All = {Package, Type, Property, Method, Argument}
+
+
+class PropertyUsages(object):
+    In = 'In'
+    Out = 'Out'
+    InOut = 'InOut'
+    Runtime = 'Runtime'
+    Const = 'Const'
+    Config = 'Config'
+    Static = 'Static'
+    All = {In, Out, InOut, Runtime, Const, Config, Static}
+    Writable = {Out, InOut, Runtime, Static, Config}
+
+
+class MethodUsages(object):
+    Action = 'Action'
+    Runtime = 'Runtime'
+    Static = 'Static'
+    Extension = 'Extension'
+
+    All = {Action, Runtime, Static, Extension}
+    InstanceMethods = {Runtime, Action}
+    StaticMethods = {Static, Extension}
+
+
+class MuranoType(object):
+    pass
+
+
+class MuranoClass(MuranoType):
+    pass
+
+
+class MuranoMetaClass(MuranoClass):
     pass
 
 
@@ -25,20 +77,36 @@ class MuranoMethod(object):
     pass
 
 
+class MuranoMethodArgument(object):
+    pass
+
+
 class MuranoPackage(object):
     pass
 
 
-class MuranoClassReference(object):
-    def __init__(self, murano_class):
-        self.__murano_class = murano_class
+class MuranoProperty(object):
+    pass
+
+
+class MuranoTypeReference(object):
+    def __init__(self, murano_type):
+        self.__murano_type = murano_type
 
     @property
-    def murano_class(self):
-        return self.__murano_class
+    def type(self):
+        return self.__murano_type
 
-    def __str__(self):
-        return self.__murano_class.name
+    def __repr__(self):
+        return '*' + repr(self.type)
+
+    def __eq__(self, other):
+        if not isinstance(other, MuranoTypeReference):
+            return False
+        return self.type == other.type
+
+    def __hash__(self):
+        return hash(self.type)
 
 
 class YaqlExpression(object):

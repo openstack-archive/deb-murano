@@ -17,8 +17,9 @@
 Murano TroubleShooting and Debug Tips
 =====================================
 
-During installation and setting environment of new projects you can run into different problems.
-This section intends to reduce the time spent on the solution of these problems.
+During installation and setting environment of new projects (tenants) you 
+can run into different problems. This section intends to reduce the time 
+spent on the solution of these problems.
 
 Problems during configuration
 =============================
@@ -60,12 +61,12 @@ You can see steps of the deployments and the one that failed would have red colo
     Go to the spawned virtual machine and open */etc/murano/agent.conf* or *C:\Murano\Agent\agent.conf* on Windows-based machine.
     Also, you can examine agent logs, located by default at */var/log/murano-agent.log*
     The first part of the log file will contain reconnection attempts to the rabbit - since the valid rabbit address and queue have not been obtained yet.
-  * Check that *notification_driver* option is set to `messagingv2`
+  * Check that *driver* option is set to `messagingv2`
   * Check that linux image name is not starts with 'w' letter
 
 *  ``[exceptions.EnvironmentError]: Unexpected stack state NOT_FOUND`` - problem with heat stack creation, need to examine Heat log file.
-   If you are running the deployment on new tenant check that router exists and it has gateway to the external network.
+   If you are running the deployment on a new tenant check that the router exists and it has gateway to the external network.
 *  ``Router could not be created, no external network found`` - Find `external_network` parameter in config file and check
-   that specified external network is really exist via UI or by executiong `neutron net-external-list` cimmand.
-*  ``NoPackageForClassFound: Package for class io.murano.Environment is not found`` - Check that murano core package is uploaded.
+   that specified external network is really exist via UI or by executing `openstack network list --external` command.
+*  ``NoPackageForClassFound: Package for class io.murano. Environment is not found`` - Check that murano core package is uploaded.
    If no, the content of `meta/io.murano` folder should be zipped and uploaded to Murano.

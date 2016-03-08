@@ -31,22 +31,20 @@ function create_murano_accounts() {
 
     create_service_user "murano"
 
-    if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
-        get_or_create_service "murano" "application-catalog" "Application Catalog Service"
-        get_or_create_endpoint "application-catalog" \
-            "$REGION_NAME" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT"
+    get_or_create_service "murano" "application-catalog" "Application Catalog Service"
+    get_or_create_endpoint "application-catalog" \
+        "$REGION_NAME" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_SERVICE_PORT"
 
-        if is_service_enabled murano-cfapi; then
-        get_or_create_service "murano-cfapi" "service-broker" "Murano CloudFoundry Service Broker"
-        get_or_create_endpoint "service-broker" \
-            "$REGION_NAME" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
-            "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT"
-        fi
+    if is_service_enabled murano-cfapi; then
+    get_or_create_service "murano-cfapi" "service-broker" "Murano CloudFoundry Service Broker"
+    get_or_create_endpoint "service-broker" \
+        "$REGION_NAME" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT" \
+        "$MURANO_SERVICE_PROTOCOL://$MURANO_SERVICE_HOST:$MURANO_CFAPI_SERVICE_PORT"
     fi
 }
 
@@ -138,7 +136,7 @@ function configure_murano {
     #-------------------------
 
     # Setup keystone_authtoken section
-    iniset $MURANO_CONF_FILE keystone_authtoken auth_uri "http://${KEYSTONE_AUTH_HOST}:5000/v2.0"
+    iniset $MURANO_CONF_FILE keystone_authtoken auth_uri "http://${KEYSTONE_AUTH_HOST}:5000"
     iniset $MURANO_CONF_FILE keystone_authtoken auth_host $KEYSTONE_AUTH_HOST
     iniset $MURANO_CONF_FILE keystone_authtoken auth_port $KEYSTONE_AUTH_PORT
     iniset $MURANO_CONF_FILE keystone_authtoken auth_protocol $KEYSTONE_AUTH_PROTOCOL
@@ -150,16 +148,21 @@ function configure_murano {
     configure_murano_rpc_backend
 
     # Configure notifications for status information during provisioning
-    iniset $MURANO_CONF_FILE DEFAULT notification_driver messagingv2
+    iniset $MURANO_CONF_FILE oslo_messaging_notifications driver messagingv2
 
     # configure the database.
     iniset $MURANO_CONF_FILE database connection `database_connection_url murano`
 
     # Configure keystone auth url
-    iniset $MURANO_CONF_FILE keystone auth_url "http://${KEYSTONE_AUTH_HOST}:5000/v2.0"
+    iniset $MURANO_CONF_FILE keystone auth_url "http://${KEYSTONE_AUTH_HOST}:5000"
 
     # Configure Murano API URL
     iniset $MURANO_CONF_FILE murano url "http://127.0.0.1:8082"
+
+    # Configure the number of engine workers
+    if [[ -n "$MURANO_ENGINE_WORKERS" ]]; then
+        iniset $MURANO_CONF_FILE engine workers $MURANO_ENGINE_WORKERS
+    fi
 }
 
 # install_murano_apps() - Install Murano apps from repository murano-apps, if required
@@ -181,7 +184,7 @@ function install_murano_apps() {
                 murano --os-username $OS_USERNAME \
                        --os-password $OS_PASSWORD \
                        --os-tenant-name $OS_PROJECT_NAME \
-                       --os-auth-url http://$KEYSTONE_AUTH_HOST:5000/v2.0 \
+                       --os-auth-url http://$KEYSTONE_AUTH_HOST:5000 \
                        --murano-url http://127.0.0.1:8082 \
                        package-import \
                        --is-public \
@@ -200,7 +203,7 @@ function configure_service_broker {
     iniset $MURANO_CONF_FILE cfapi tenant "$MURANO_CFAPI_DEFAULT_TENANT"
     iniset $MURANO_CONF_FILE cfapi bind_host "$MURANO_SERVICE_HOST"
     iniset $MURANO_CONF_FILE cfapi bind_port "$MURANO_CFAPI_SERVICE_PORT"
-    iniset $MURANO_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000/v2.0"
+    iniset $MURANO_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000"
 }
 
 
@@ -285,7 +288,8 @@ function configure_murano_tempest_plugin() {
             sudo chown -R tempest:stack $MURANO_DIR/murano_tempest_tests
         fi
         if is_service_enabled murano-cfapi; then
-            # Enable Service Broker tests if cfapi enabled
+            # Enable Service Broker tests if cfapi enabled and set murano-cfapi service availability flag
+            iniset $TEMPEST_CONFIG service_available murano_cfapi "True"
             iniset $TEMPEST_CONFIG service_broker run_service_broker_tests "True"
         fi
     fi

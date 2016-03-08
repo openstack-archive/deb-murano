@@ -54,7 +54,7 @@ release.
    enduser-guide/quickstart
    enduser-guide/manage_environments
    enduser-guide/manage_applications
-   enduser-guide/log_into_murano_instance
+   enduser-guide/log_in_to_murano_instance
    enduser-guide/use_cli
    enduser-guide/deploying_using_cli
 
@@ -66,11 +66,12 @@ Deploying Murano
 
    admin-guide/prepare_lab
    admin-guide/installation
-   admin-guide/policy_enf
+   admin-guide/manage_packages
    admin-guide/manage_images
    admin-guide/manage_categories
    admin-guide/murano_repository
    admin-guide/murano_agent
+   admin-guide/policy_enf
    admin-guide/configure_cloud_foundry_service_broker
    admin-guide/admin_troubleshooting
 
@@ -86,6 +87,7 @@ Developing Applications
    appdev-guide/murano_pl
    appdev-guide/murano_packages
    appdev-guide/app_migrating
+   appdev-guide/app_unit_tests
    appdev-guide/examples
    appdev-guide/use_cases
    appdev-guide/faq

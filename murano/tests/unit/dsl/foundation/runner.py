@@ -21,11 +21,11 @@ from murano.dsl import context_manager
 from murano.dsl import dsl
 from murano.dsl import dsl_exception
 from murano.dsl import executor
-from murano.dsl import linked_context
+from murano.dsl import helpers
 from murano.dsl import murano_object
 from murano.dsl import serializer
 from murano.dsl import yaql_integration
-from murano.engine import environment
+from murano.engine import execution_session
 from murano.engine.system import yaql_functions
 from murano.tests.unit.dsl.foundation import object_model
 
@@ -37,7 +37,7 @@ class TestContextManager(context_manager.ContextManager):
     def create_root_context(self, runtime_version):
         root_context = super(TestContextManager, self).create_root_context(
             runtime_version)
-        context = linked_context.link(
+        context = helpers.link_contexts(
             root_context, yaql_functions.get_context(runtime_version))
         context = context.create_child_context()
         for name, func in six.iteritems(self.__functions):
@@ -77,7 +77,7 @@ class Runner(object):
 
         self.executor = executor.MuranoDslExecutor(
             package_loader, TestContextManager(functions),
-            environment.Environment())
+            execution_session.ExecutionSession())
         self._root = self.executor.load(model).object
 
     def _execute(self, name, object_id, *args, **kwargs):
@@ -105,8 +105,10 @@ class Runner(object):
                         original_exception, dsl_exception.MuranoPlException):
                     exc_traceback = getattr(
                         e, 'original_traceback', None) or sys.exc_info()[2]
-                    raise type(original_exception), original_exception, \
-                        exc_traceback
+                    six.reraise(
+                        type(original_exception),
+                        original_exception,
+                        exc_traceback)
             raise
 
     def __getattr__(self, item):

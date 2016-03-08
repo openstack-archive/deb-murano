@@ -10,8 +10,6 @@ Murano command-line client
 The ``murano`` client is the command-line
 interface (CLI) for the Application catalog API and its extensions.
 
-This chapter documents ``murano`` version ``0.6.1``.
-
 For help on a specific ``murano`` command, enter:
 
 .. code-block:: console
@@ -133,11 +131,11 @@ Murano optional arguments
 **--os-password OS_PASSWORD**
     Defaults to env[OS_PASSWORD]
 
-**--os-tenant-id OS_TENANT_ID**
-    Defaults to env[OS_TENANT_ID]
+**--os-project-id OS_PROJECT_ID**
+    Defaults to env[OS_PROJECT_ID]
 
-**--os-tenant-name OS_TENANT_NAME**
-    Defaults to env[OS_TENANT_NAME]
+**--os-project-name OS_PROJECT_NAME**
+    Defaults to env[OS_PROJECT_NAME]
 
 **--os-auth-url OS_AUTH_URL**
     Defaults to env[OS_AUTH_URL]
@@ -199,7 +197,7 @@ Optional arguments
 ~~~~~~~~~~~~~~~~~~
 
 **--is-public**
-    Make packages available to users from other tenants
+    Make packages available to users from other project
 
 **--exists-action {a,s,u}**
     Default action when a package already exists
@@ -547,7 +545,7 @@ murano package-import
 .. code-block::console
 
  usage: murano package-import \[-c \[<CAT1 CAT2 CAT3> \[<CAT1 CAT2 CAT3> ...]]]
- \[--is-public] \[--version VERSION]
+ \[--is-public] \[--package-version VERSION]
  \[--exists-action {a,s,u}]
  <FILE> \[<FILE> ...]
 
@@ -567,9 +565,9 @@ Optional arguments
     Category list to attach
 
 **--is-public**
-    Make the package available for user from other tenants
+    Make the package available for user from other project
 
-**--version VERSION**
+**--package-version VERSION**
     Version of the package to use from repository (ignored when importing with
     multiple packages)
 

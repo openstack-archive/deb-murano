@@ -12,10 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six
-
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
+import six
 from webob import exc
 
 from murano.api.v1 import request_statistics
@@ -50,7 +49,7 @@ class Controller(object):
             if not is_public:
 
                 filters['is_public'] = False
-                filters = {'tenant_id': tenant_id}
+                filters['tenant_id'] = tenant_id
             elif is_public:
                 filters['is_public'] = True
 
@@ -58,7 +57,7 @@ class Controller(object):
                 get_env_templates_by(filters)
 
         else:
-            filters = (EnvironmentTemplate.is_public is True,
+            filters = (EnvironmentTemplate.is_public,
                        EnvironmentTemplate.tenant_id == tenant_id)
             list_templates = env_temps.EnvTemplateServices.\
                 get_env_templates_or_by(filters)

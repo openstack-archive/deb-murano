@@ -18,8 +18,8 @@ import time
 
 from tempest.common import dynamic_creds
 from tempest import config
+from tempest.lib import exceptions
 from tempest import test
-from tempest_lib import exceptions
 
 from murano_tempest_tests import clients
 
@@ -34,7 +34,7 @@ class BaseServiceBrokerTest(test.BaseTestCase):
                                        type_of_creds="admin"):
 
         cls.dynamic_cred = dynamic_creds.DynamicCredentialProvider(
-            identity_version=CONF.service_broker.identity_version,
+            identity_version=CONF.identity.auth_version,
             name=cls.__name__)
         if "admin" in type_of_creds:
             creds = cls.dynamic_cred.get_admin_creds()
@@ -59,7 +59,10 @@ class BaseServiceBrokerTest(test.BaseTestCase):
     def resource_setup(cls):
         if not CONF.service_broker.run_service_broker_tests:
             skip_msg = "Service Broker API tests are disabled"
-            cls.skipException(skip_msg)
+            raise cls.skipException(skip_msg)
+        if not CONF.service_available.murano_cfapi:
+            skip_msg = "Service Broker API is disabled"
+            raise cls.skipException(skip_msg)
         if not CONF.service_available.murano:
             skip_msg = "Murano is disabled"
             raise cls.skipException(skip_msg)
@@ -127,5 +130,5 @@ class BaseServiceBrokerAdminTest(BaseServiceBrokerTest):
             cls.password = CONF.auth.admin_password
             cls.tenant_name = CONF.auth.admin_tenant_name
         cls.verify_nonempty(cls.username, cls.password, cls.tenant_name)
-        cls.os = clients.AdminManager()
+        cls.os = clients.Manager()
         super(BaseServiceBrokerAdminTest, cls).resource_setup()

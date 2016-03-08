@@ -37,9 +37,9 @@ Using CLI client
 ================
 
 In order to use the CLI, you must provide your OpenStack username, password,
-tenant name or id, and auth endpoint. Use the corresponding arguments
-(``--os-username``, ``--os-password``, ``--os-tenant-name`` or
-``--os-tenant-id``, ``--os-auth-url`` and ``--murano-url``) or
+project name or id, and auth endpoint. Use the corresponding arguments
+(``--os-username``, ``--os-password``, ``--os-project-name`` or
+``--os-project-id``, ``--os-auth-url`` and ``--murano-url``) or
 set corresponding environment variables::
 
     export OS_USERNAME=user
@@ -78,12 +78,12 @@ Importing packages in Murano
 ============================
 
 ``package-import`` subcommand can install packages in several different ways:
-    * from a locall file
+    * from a local file
     * from a http url
     * from murano app repository
 
 When creating a package you can specify it's categories with
-``-c/--categories`` and set it's publicity with ``--public``
+``-c/--categories`` and set it's publicity with ``--is-public``
 
 To import a local package run::
 
@@ -101,8 +101,9 @@ running::
     murano --murano-repo-url="http://example.com/" package-import io.app.foo
 
 would access specified repository and download app ``io.app.foo`` from it's
-app directory. This option supports an optional ``--version`` parameter, that
-would instruct murano client to download package of a specific version.
+app directory. This option supports an optional ``--package-version``
+parameter, that would instruct murano client to download package of a
+specific version.
 
 ``package-import`` inspects package requirements specified in the package's
 manifest under `Require` section and attempts to import them from
@@ -122,13 +123,13 @@ would ask you what do do with it. You can specify the default action with
 Importing bundles of packages in Murano
 =======================================
 
-``package-import`` subcommand can install packages in several different ways:
-    * from a locall file
+``bundle-import`` subcommand can install bundles of packages in several
+different ways:
+    * from a local file
     * from a http url
     * from murano app repository
 
-When creating a package you can specify it's categories with
-``-c/--categories`` and set it's publicity with ``--public``
+When creating a bundle you can set it's publicity with ``--is-public``
 
 To import a local bundle run::
 
@@ -142,10 +143,12 @@ To import a bundle from murano repository run::
 
     murano bundle-import bundle_name
 
-Note: When importing from a local file packages would first be searched in a
-directory, relative to the directory containing the bundle file itself. This
-is done to facilitate installing bundles in an environment with no access to
-the repository itself.
+.. note::
+
+   When importing from a local file packages would first be searched in a
+   directory, relative to the directory containing the bundle file itself.
+   This is done to facilitate installing bundles in an environment with no
+   access to the repository itself.
 
 Deleting packages from murano
 =============================
@@ -173,7 +176,7 @@ files/directories. To find out more about this command run::
     murano help package-create
 
 This command is useful, when application package files are spread across
-several directories, and for auto-generating packages from heat templates
+several directories, and for auto-generating packages from heat templates.
 For more info about package composition please see package creation docs:
 :ref:`step-by-step`.
 

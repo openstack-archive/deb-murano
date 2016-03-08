@@ -14,7 +14,6 @@
 
 
 import six
-from six.moves import range
 
 from murano.dsl import constants
 from murano.dsl import dsl_exception
@@ -26,9 +25,8 @@ from murano.dsl import yaql_expression
 
 class CodeBlock(expressions.DslExpression):
     def __init__(self, body):
-        if not isinstance(body, list):
-            body = [body]
-        self.code_block = map(expressions.parse_expression, body)
+        body = helpers.list_value(body)
+        self.code_block = list(map(expressions.parse_expression, body))
 
     def execute(self, context):
         for expr in self.code_block:

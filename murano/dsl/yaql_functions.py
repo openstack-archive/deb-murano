@@ -22,66 +22,69 @@ from murano.dsl import constants
 from murano.dsl import dsl
 from murano.dsl import dsl_types
 from murano.dsl import helpers
-from murano.dsl import linked_context
+from murano.dsl import reflection
 
 
-@specs.parameter('value', dsl_types.MuranoObject)
-def id_(value):
-    return value.object_id
+@specs.parameter('object_', dsl.MuranoObjectParameter())
+def id_(object_):
+    return object_.id
 
 
-@specs.parameter('value', dsl_types.MuranoObject)
-@specs.parameter('type__', dsl.MuranoTypeName())
+@specs.parameter('object_', dsl.MuranoObjectParameter())
+@specs.parameter('type__', dsl.MuranoTypeParameter())
 @specs.parameter('version_spec', yaqltypes.String(True))
-def cast(context, value, type__, version_spec=None):
+def cast(context, object_, type__, version_spec=None):
     return helpers.cast(
-        value, type__.murano_class.name,
+        object_, type__.type.name,
         version_spec or helpers.get_type(context))
 
 
-@specs.parameter('__type_name', dsl.MuranoTypeName())
+@specs.parameter('__type_name', dsl.MuranoTypeParameter())
 @specs.parameter('__extra', utils.MappingType)
-@specs.parameter('__owner', dsl_types.MuranoObject)
+@specs.parameter('__owner', dsl.MuranoObjectParameter(
+    nullable=True, decorate=False))
 @specs.parameter('__object_name', yaqltypes.String(True))
 def new(__context, __type_name, __owner=None, __object_name=None, __extra=None,
         **parameters):
     object_store = helpers.get_object_store(__context)
+    executor = helpers.get_executor(__context)
     new_context = __context.create_child_context()
     for key, value in six.iteritems(parameters):
-        if helpers.is_keyword(key):
+        if utils.is_keyword(key):
             new_context[key] = value
-    return __type_name.murano_class.new(
-        __owner, object_store, name=__object_name)(new_context, **parameters)
+    return __type_name.type.new(
+        __owner, object_store, executor, name=__object_name)(
+        new_context, **parameters)
 
 
-@specs.parameter('type_name', dsl.MuranoTypeName())
+@specs.parameter('type_name', dsl.MuranoTypeParameter())
 @specs.parameter('parameters', utils.MappingType)
 @specs.parameter('extra', utils.MappingType)
-@specs.parameter('owner', dsl_types.MuranoObject)
+@specs.parameter('owner', dsl.MuranoObjectParameter(nullable=True))
 @specs.parameter('object_name', yaqltypes.String(True))
 @specs.name('new')
 def new_from_dict(type_name, context, parameters,
                   owner=None, object_name=None, extra=None):
     return new(context, type_name, owner, object_name, extra,
-               **helpers.filter_parameters_dict(parameters))
+               **utils.filter_parameters_dict(parameters))
 
 
-@specs.parameter('sender', dsl_types.MuranoObject)
+@specs.parameter('object_', dsl.MuranoObjectParameter(decorate=False))
 @specs.parameter('func', yaqltypes.Lambda())
-def super_(context, sender, func=None):
+def super_(context, object_, func=None):
     cast_type = helpers.get_type(context)
     if func is None:
-        return [sender.cast(type) for type in cast_type.parents(
-            sender.real_this.type)]
-    return six.moves.map(func, super_(context, sender))
+        return [object_.cast(type) for type in cast_type.parents(
+            object_.real_this.type)]
+    return six.moves.map(func, super_(context, object_))
 
 
-@specs.parameter('value', dsl_types.MuranoObject)
+@specs.parameter('object_', dsl.MuranoObjectParameter(decorate=False))
 @specs.parameter('func', yaqltypes.Lambda())
-def psuper(context, value, func=None):
+def psuper(context, object_, func=None):
     if func is None:
-        return super_(context, value)
-    return helpers.parallel_select(super_(context, value), func)
+        return super_(context, object_)
+    return helpers.parallel_select(super_(context, object_), func)
 
 
 @specs.extension_method
@@ -91,16 +94,11 @@ def require(value):
     return value
 
 
-@specs.parameter('obj', dsl_types.MuranoObject)
-@specs.parameter('murano_class_ref', dsl.MuranoTypeName())
+@specs.parameter('obj', dsl.MuranoObjectParameter())
+@specs.parameter('murano_class_ref', dsl.MuranoTypeParameter())
 @specs.extension_method
 def find(obj, murano_class_ref):
-    p = obj.owner
-    while p is not None:
-        if murano_class_ref.murano_class.is_compatible(p):
-            return p
-        p = p.owner
-    return None
+    return obj.find_owner(murano_class_ref, optional=True)
 
 
 @specs.parameter('seconds', yaqltypes.Number())
@@ -108,60 +106,99 @@ def sleep_(seconds):
     eventlet.sleep(seconds)
 
 
-@specs.parameter('object_', dsl_types.MuranoObject)
+@specs.parameter('object_', dsl.MuranoObjectParameter(nullable=True))
 def type_(object_):
-    return object_.type.name
+    return None if object_ is None else object_.type.get_reference()
 
 
-@specs.parameter('object_', dsl_types.MuranoObject)
+@specs.name('type')
+@specs.parameter('object_', dsl.MuranoObjectParameter(nullable=True))
+def type_legacy(object_):
+    return None if object_ is None else object_.type.name
+
+
+@specs.name('type')
+@specs.parameter('cls', dsl.MuranoTypeParameter())
+def type_from_name(cls):
+    return cls
+
+
+@specs.parameter('object_', dsl.MuranoObjectParameter(nullable=True))
+def typeinfo(object_):
+    return None if object_ is None else object_.type
+
+
+@specs.parameter('cls', dsl.MuranoTypeParameter())
+@specs.name('typeinfo')
+def typeinfo_for_class(cls):
+    return cls.type
+
+
+@specs.parameter('object_', dsl.MuranoObjectParameter(nullable=True))
 def name(object_):
-    return object_.name
+    return None if object_ is None else object_.name
 
 
-@specs.parameter('obj', dsl_types.MuranoObject)
+@specs.parameter('obj', dsl.MuranoObjectParameter(decorate=False))
 @specs.parameter('property_name', yaqltypes.Keyword())
 @specs.name('#operator_.')
 def obj_attribution(context, obj, property_name):
     return obj.get_property(property_name, context)
 
 
-@specs.parameter('sender', dsl_types.MuranoObject)
+@specs.parameter('cls', dsl_types.MuranoTypeReference)
+@specs.parameter('property_name', yaqltypes.Keyword())
+@specs.name('#operator_.')
+def obj_attribution_static(context, cls, property_name):
+    return cls.type.get_property(property_name, context)
+
+
+@specs.parameter('receiver', dsl.MuranoObjectParameter(decorate=False))
 @specs.parameter('expr', yaqltypes.Lambda(method=True))
 @specs.inject('operator', yaqltypes.Super(with_context=True))
 @specs.name('#operator_.')
-def op_dot(context, sender, expr, operator):
+def op_dot(context, receiver, expr, operator):
     executor = helpers.get_executor(context)
-    type_context = executor.context_manager.create_class_context(sender.type)
-    obj_context = executor.context_manager.create_object_context(sender)
-    ctx2 = linked_context.link(
-        linked_context.link(context, type_context),
+    type_context = executor.context_manager.create_type_context(receiver.type)
+    obj_context = executor.context_manager.create_object_context(receiver)
+    ctx2 = helpers.link_contexts(
+        helpers.link_contexts(context, type_context),
         obj_context)
-    return operator(ctx2, sender, expr)
+    return operator(ctx2, receiver, expr)
+
+
+@specs.parameter('receiver', dsl_types.MuranoTypeReference)
+@specs.parameter('expr', yaqltypes.Lambda(method=True))
+@specs.inject('operator', yaqltypes.Super(with_context=True))
+@specs.name('#operator_.')
+def op_dot_static(context, receiver, expr, operator):
+    executor = helpers.get_executor(context)
+    type_context = executor.context_manager.create_type_context(
+        receiver.type)
+    ctx2 = helpers.link_contexts(context, type_context)
+    return operator(ctx2, receiver, expr)
 
 
 @specs.parameter('prefix', yaqltypes.Keyword())
 @specs.parameter('name', yaqltypes.Keyword())
 @specs.name('#operator_:')
 def ns_resolve(context, prefix, name):
-    murano_type = helpers.get_type(context)
-    return dsl_types.MuranoClassReference(
-        helpers.get_class(
-            murano_type.namespace_resolver.resolve_name(
-                prefix + ':' + name), context))
+    return helpers.get_class(prefix + ':' + name, context).get_reference()
 
 
-@specs.parameter('obj1', dsl_types.MuranoObject, nullable=True)
-@specs.parameter('obj2', dsl_types.MuranoObject, nullable=True)
-@specs.name('*equal')
-def equal(obj1, obj2):
-    return obj1 is obj2
+@specs.parameter('name', yaqltypes.Keyword())
+@specs.name('#unary_operator_:')
+def ns_resolve_unary(context, name):
+    return ns_resolve(context, '', name)
 
 
-@specs.parameter('obj1', dsl_types.MuranoObject, nullable=True)
-@specs.parameter('obj2', dsl_types.MuranoObject, nullable=True)
-@specs.name('*not_equal')
-def not_equal(obj1, obj2):
-    return obj1 is not obj2
+@specs.parameter('obj', dsl.MuranoObjectParameter(nullable=True))
+@specs.parameter('type_', dsl.MuranoTypeParameter())
+@specs.name('#operator_is')
+def is_instance_of(obj, type_):
+    if obj is None:
+        return False
+    return type_.type.is_compatible(obj)
 
 
 def register(context, runtime_version):
@@ -174,18 +211,28 @@ def register(context, runtime_version):
     context.register_function(require)
     context.register_function(find)
     context.register_function(sleep_)
-    context.register_function(type_)
+    context.register_function(typeinfo)
+    context.register_function(typeinfo_for_class)
     context.register_function(name)
     context.register_function(obj_attribution)
+    context.register_function(obj_attribution_static)
     context.register_function(op_dot)
+    context.register_function(op_dot_static)
     context.register_function(ns_resolve)
-    context.register_function(equal)
-    context.register_function(not_equal)
+    context.register_function(ns_resolve_unary)
+    reflection.register(context)
+    context.register_function(is_instance_of)
+    if runtime_version <= constants.RUNTIME_VERSION_1_3:
+        context.register_function(type_legacy)
+    else:
+        context.register_function(type_)
 
     if runtime_version <= constants.RUNTIME_VERSION_1_1:
-        context2 = context.create_child_context()
+        context = context.create_child_context()
         for t in ('id', 'cast', 'super', 'psuper', 'type'):
             for spec in utils.to_extension_method(t, context):
-                context2.register_function(spec)
-        return context2
+                context.register_function(spec)
+
+    context.register_function(type_from_name)
+
     return context

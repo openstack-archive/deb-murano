@@ -21,13 +21,12 @@ from murano.dsl import dsl
 from murano.dsl import dsl_types
 from murano.dsl import exceptions
 from murano.dsl import helpers
-from murano.dsl import typespec
 from murano.dsl import yaql_integration
 
 
 class MuranoObject(dsl_types.MuranoObject):
-    def __init__(self, murano_class, owner, object_store, object_id=None,
-                 name=None, known_classes=None, defaults=None, this=None):
+    def __init__(self, murano_class, owner, object_store, executor,
+                 object_id=None, name=None, known_classes=None, this=None):
         if known_classes is None:
             known_classes = {}
         self.__owner = owner.real_this if owner else None
@@ -35,11 +34,12 @@ class MuranoObject(dsl_types.MuranoObject):
         self.__type = murano_class
         self.__properties = {}
         self.__parents = {}
-        self.__defaults = defaults or {}
         self.__this = this
         self.__name = name
         self.__extension = None
-        self.__object_store = weakref.ref(object_store)
+        self.__object_store = \
+            None if object_store is None else weakref.ref(object_store)
+        self.__executor = weakref.ref(executor)
         self.__config = murano_class.package.get_class_config(
             murano_class.name)
         if not isinstance(self.__config, dict):
@@ -49,9 +49,8 @@ class MuranoObject(dsl_types.MuranoObject):
             name = parent_class.name
             if name not in known_classes:
                 obj = parent_class.new(
-                    owner, object_store, object_id=self.__object_id,
-                    known_classes=known_classes, defaults=defaults,
-                    this=self.real_this).object
+                    owner, object_store, executor, object_id=self.__object_id,
+                    known_classes=known_classes, this=self.real_this).object
 
                 self.__parents[name] = known_classes[name] = obj
             else:
@@ -72,14 +71,18 @@ class MuranoObject(dsl_types.MuranoObject):
 
     @property
     def object_store(self):
-        return self.__object_store()
+        return None if self.__object_store is None else self.__object_store()
+
+    @property
+    def executor(self):
+        return self.__executor()
 
     def initialize(self, context, object_store, params):
         if self.__initialized:
             return
         for property_name in self.__type.properties:
-            spec = self.__type.get_property(property_name)
-            if spec.usage == typespec.PropertyUsages.Config:
+            spec = self.__type.properties[property_name]
+            if spec.usage == dsl_types.PropertyUsages.Config:
                 if property_name in self.__config:
                     property_value = self.__config[property_name]
                 else:
@@ -100,15 +103,16 @@ class MuranoObject(dsl_types.MuranoObject):
                     spec = init.arguments_scheme[property_name]
                     is_init_arg = True
                 else:
-                    spec = self.__type.get_property(property_name)
+                    spec = self.__type.properties[property_name]
                     is_init_arg = False
 
                 if property_name in used_names:
                     continue
-                if spec.usage == typespec.PropertyUsages.Config:
+                if spec.usage in (dsl_types.PropertyUsages.Config,
+                                  dsl_types.PropertyUsages.Static):
                     used_names.add(property_name)
                     continue
-                if spec.usage == typespec.PropertyUsages.Runtime:
+                if spec.usage == dsl_types.PropertyUsages.Runtime:
                     if not spec.has_default:
                         used_names.add(property_name)
                         continue
@@ -119,12 +123,13 @@ class MuranoObject(dsl_types.MuranoObject):
                     if is_init_arg:
                         init_args[property_name] = property_value
                     else:
-                        self.set_property(property_name, property_value)
+                        self.set_property(
+                            property_name, property_value, context)
                     used_names.add(property_name)
                 except exceptions.UninitializedPropertyAccessError:
                     errors += 1
                 except exceptions.ContractViolationException:
-                    if spec.usage != typespec.PropertyUsages.Runtime:
+                    if spec.usage != dsl_types.PropertyUsages.Runtime:
                         raise
             if not errors:
                 break
@@ -133,7 +138,8 @@ class MuranoObject(dsl_types.MuranoObject):
             last_errors = errors
 
         executor = helpers.get_executor(context)
-        if not object_store.initializing and self.__extension is None:
+        if ((object_store is None or not object_store.initializing) and
+                self.__extension is None):
             method = self.type.methods.get('__init__')
             if method:
                 filtered_params = yaql_integration.filter_parameters(
@@ -146,7 +152,7 @@ class MuranoObject(dsl_types.MuranoObject):
         for parent in self.__parents.values():
             parent.initialize(context, object_store, params)
 
-        if not object_store.initializing and init:
+        if (object_store is None or not object_store.initializing) and init:
             context[constants.CTX_ARGUMENT_OWNER] = self.real_this
             init.invoke(executor, self.real_this, (), init_args, context)
             self.__initialized = True
@@ -173,15 +179,23 @@ class MuranoObject(dsl_types.MuranoObject):
         if caller_class is not None and caller_class.is_compatible(self):
             start_type, derived = caller_class, True
         if name in start_type.properties:
-            return self.cast(start_type)._get_property_value(name)
-        else:
-            declared_properties = start_type.find_single_property(name)
-            if declared_properties:
-                return self.cast(declared_properties).__properties[name]
-            elif derived:
-                return self.cast(caller_class)._get_property_value(name)
+            spec = start_type.properties[name]
+            if spec.usage == dsl_types.PropertyUsages.Static:
+                return spec.declaring_type.get_property(name, context)
             else:
-                raise exceptions.PropertyReadError(name, start_type)
+                return self.cast(start_type)._get_property_value(name)
+        else:
+            try:
+                spec = start_type.find_single_property(name)
+                if spec.usage == dsl_types.PropertyUsages.Static:
+                    return spec.declaring_type.get_property(name, context)
+                else:
+                    return self.cast(spec.declaring_type).__properties[name]
+            except exceptions.NoPropertyFound:
+                if derived:
+                    return self.cast(caller_class)._get_property_value(name)
+                else:
+                    raise exceptions.PropertyReadError(name, start_type)
 
     def _get_property_value(self, name):
         try:
@@ -195,30 +209,36 @@ class MuranoObject(dsl_types.MuranoObject):
         caller_class = None if not context else helpers.get_type(context)
         if caller_class is not None and caller_class.is_compatible(self):
             start_type, derived = caller_class, True
-        declared_properties = start_type.find_property(name)
+        declared_properties = start_type.find_properties(
+            lambda p: p.name == name)
         if context is None:
-            context = self.object_store.executor.create_object_context(self)
+            context = self.executor.create_object_context(self)
         if len(declared_properties) > 0:
-            declared_properties = self.type.find_property(name)
+            declared_properties = self.type.find_properties(
+                lambda p: p.name == name)
             values_to_assign = []
-            for mc in declared_properties:
-                spec = mc.get_property(name)
+            classes_for_static_properties = []
+            for spec in declared_properties:
                 if (caller_class is not None and not
                         helpers.are_property_modifications_allowed(context) and
-                        (spec.usage not in typespec.PropertyUsages.Writable or
+                        (spec.usage not in dsl_types.PropertyUsages.Writable or
                             not derived)):
                     raise exceptions.NoWriteAccessError(name)
 
-                default = self.__config.get(name, spec.default)
-                default = self.__defaults.get(name, default)
-                default = helpers.evaluate(default, context)
+                if spec.usage == dsl_types.PropertyUsages.Static:
+                    classes_for_static_properties.append(spec.declaring_type)
+                else:
+                    default = self.__config.get(name, spec.default)
+                    # default = helpers.evaluate(default, context)
 
-                obj = self.cast(mc)
-                values_to_assign.append((obj, spec.validate(
-                    value, self.real_this,
-                    self.real_this, default=default)))
+                    obj = self.cast(spec.declaring_type)
+                    values_to_assign.append((obj, spec.transform(
+                        value, self.real_this,
+                        self.real_this, context, default=default)))
             for obj, value in values_to_assign:
                 obj.__properties[name] = value
+            for cls in classes_for_static_properties:
+                cls.set_property(name, value, context)
         elif derived:
             obj = self.cast(caller_class)
             obj.__properties[name] = value
@@ -251,8 +271,8 @@ class MuranoObject(dsl_types.MuranoObject):
         else:
             for property_name in self.type.properties:
                 if property_name in self.__properties:
-                    spec = self.type.get_property(property_name)
-                    if spec.usage != typespec.PropertyUsages.Runtime:
+                    spec = self.type.properties[property_name]
+                    if spec.usage != dsl_types.PropertyUsages.Runtime:
                         result[property_name] = self.__properties[
                             property_name]
         return result

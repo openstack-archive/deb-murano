@@ -43,6 +43,12 @@ class NoMethodFound(Exception):
         super(NoMethodFound, self).__init__('Method "%s" is not found' % name)
 
 
+class NoPropertyFound(Exception):
+    def __init__(self, name):
+        super(NoPropertyFound, self).__init__(
+            'Property "%s" is not found' % name)
+
+
 class NoClassFound(Exception):
     def __init__(self, name, packages=None):
         if packages is None:
@@ -153,4 +159,14 @@ class UninitializedPropertyAccessError(PropertyAccessError):
 
 
 class CircularExpressionDependenciesError(Exception):
+    pass
+
+
+class InvalidLhsTargetError(Exception):
+    def __init__(self, target):
+        super(InvalidLhsTargetError, self).__init__(
+            'Invalid assignment target "%s"' % target)
+
+
+class InvalidInheritanceError(Exception):
     pass

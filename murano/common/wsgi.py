@@ -18,7 +18,6 @@
 import datetime
 import errno
 import re
-import six
 import socket
 import sys
 import time
@@ -35,6 +34,7 @@ from oslo_service import service
 from oslo_service import sslutils
 import routes
 import routes.middleware
+import six
 import webob.dec
 import webob.exc
 
@@ -81,6 +81,7 @@ class Service(service.Service):
         self._host = host
         self._backlog = backlog if backlog else CONF.backlog
         self._logger = logging.getLogger('eventlet.wsgi')
+        self.greenthread = None
         super(Service, self).__init__(threads)
 
     def _get_socket(self, host, port, backlog):
@@ -133,7 +134,8 @@ class Service(service.Service):
         """
         super(Service, self).start()
         self._socket = self._get_socket(self._host, self._port, self._backlog)
-        self.tg.add_thread(self._run, self.application, self._socket)
+        self.greenthread = eventlet.spawn(
+            self._run, self.application, self._socket)
 
     @property
     def backlog(self):
@@ -154,6 +156,8 @@ class Service(service.Service):
 
         """
         super(Service, self).stop()
+        if self.greenthread is not None:
+            self.greenthread.kill()
 
     def reset(self):
         super(Service, self).reset()
@@ -287,7 +291,7 @@ class Router(object):
 
 
 class Request(webob.Request):
-    """Add some Openstack API-specific logic to the base webob.Request."""
+    """Add some OpenStack API-specific logic to the base webob.Request."""
 
     default_request_content_types = ('application/json',
                                      'application/xml',
@@ -302,7 +306,7 @@ class Request(webob.Request):
         """Determine the requested response content-type.
 
         Based on the query extension then the Accept header.
-        Raise UnsupportedContentType exception if we don't find a preference
+        Raise NotAcceptableContentType exception if we don't find a preference
 
         """
         supported_content_types = (supported_content_types or
@@ -320,7 +324,7 @@ class Request(webob.Request):
             bm = self.accept.best_match(supported_content_types)
 
         if not bm:
-            raise exceptions.UnsupportedContentType(content_type=self.accept)
+            raise exceptions.NotAcceptableContentType(content_type=self.accept)
         return bm
 
     def get_content_type(self, allowed_content_types=None):
@@ -412,6 +416,9 @@ class Resource(object):
         except exceptions.UnsupportedContentType:
             msg = _("Unsupported Content-Type")
             return webob.exc.HTTPUnsupportedMediaType(detail=msg)
+        except exceptions.NotAcceptableContentType:
+            msg = _("Acceptable response can not be provided")
+            return webob.exc.HTTPNotAcceptable(detail=msg)
         except exceptions.MalformedRequestBody:
             msg = _("Malformed request body")
             return webob.exc.HTTPBadRequest(explanation=msg)

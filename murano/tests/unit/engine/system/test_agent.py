@@ -17,8 +17,8 @@ import os
 import mock
 import yaml as yamllib
 
-from murano.dsl import murano_class
 from murano.dsl import murano_object
+from murano.dsl import murano_type
 from murano.dsl import object_store
 from murano.engine.system import agent
 from murano.engine.system import resource_manager
@@ -33,17 +33,16 @@ class TestExecutionPlan(base.MuranoTestCase):
         else:
             self.yaml_loader = yamllib.SafeLoader
 
-        self.mock_murano_class = mock.Mock(spec=murano_class.MuranoClass)
+        self.mock_murano_class = mock.Mock(spec=murano_type.MuranoClass)
         self.mock_murano_class.name = 'io.murano.system.Agent'
         self.mock_murano_class.declared_parents = []
         self.mock_object_store = mock.Mock(spec=object_store.ObjectStore)
 
         object_interface = mock.Mock(spec=murano_object.MuranoObject)
         object_interface.id = '1234'
+        object_interface.find_owner = lambda *args, **kwargs: object_interface
 
-        agent.Agent._get_environment = \
-            lambda this, iface, host: object_interface
-        self.agent = agent.Agent(None, object_interface)
+        self.agent = agent.Agent(object_interface)
         self.resources = mock.Mock(spec=resource_manager.ResourceManager)
         self.resources.string.return_value = 'text'
         self.uuids = ['ID1', 'ID2', 'ID3', 'ID4']

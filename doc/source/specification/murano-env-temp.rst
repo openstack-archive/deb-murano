@@ -16,8 +16,8 @@
 Environment template API
 ========================
 
-Manage environment template definitions in Murano. It is possible to create, update, delete and deploy into OpenStack by translating
-it into an environment. In addition, applications can be added or delete to the environment template.
+Manage environment template definitions in murano. It is possible to create, update, delete, and deploy into OpenStack by translating
+it into an environment. In addition, applications can be added to or deleted from the environment template.
 
 **Environment Template Properties**
 
@@ -32,7 +32,7 @@ it into an environment. In addition, applications can be added or delete to the 
 +----------------------+------------+-------------------------------------------+
 | updated              | datetime   | Modification date and time in ISO format  |
 +----------------------+------------+-------------------------------------------+
-| tenant_id            | string     | OpenStack tenant ID                       |
+| tenant_id            | string     | OpenStack project                         |
 +----------------------+------------+-------------------------------------------+
 | version              | int        | Current version                           |
 +----------------------+------------+-------------------------------------------+
@@ -68,9 +68,9 @@ List Environments Templates
 *Parameters:*
 
 * `is_public` - boolean, indicates whether public environment templates are listed or not.
-  *True* public environments templates from all tenants are listed.
-  *False* private environments templates from current tenant are listed
-  *empty* all tenant templates plus public templates from all tenants are listed
+  *True* public environments templates from all projects are listed.
+  *False* private environments templates from current project are listed
+  *empty* all project templates plus public templates from all projects are listed
 
 *Response*
 
@@ -432,7 +432,7 @@ Create an environment from an environment template
 +----------+--------------------------------+-------------------------------------------------+
 | Method   | URI                            | Description                                     |
 +==========+================================+=================================================+
-| POST     | /templates/{env-temp-id}/clone | It clones a public template from one tenant     |
+| POST     | /templates/{env-temp-id}/clone | It clones a public template from one project    |
 |          |                                | to another                                      |
 +----------+--------------------------------+-------------------------------------------------+
 

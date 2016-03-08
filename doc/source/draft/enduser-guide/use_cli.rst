@@ -7,11 +7,6 @@
 Using CLI
 =========
 
-This section is under development at the moment and will be available soon.
-
-Manage applications
-~~~~~~~~~~~~~~~~~~~
-
 Manage environments
 ~~~~~~~~~~~~~~~~~~~
 
@@ -126,7 +121,7 @@ For example:
   | 83e4038885c248e3a758f8217ff8241f| MySQL| io.murano.databases.MySql| Mirantis, Inc|         |
   +---------------------------------+------+--------------------------+--------------+---------+
 
-To make the package available for users from other tenants, use the
+To make the package available for users from other projects (tenants), use the
 ``--is-public`` parameter. For example:
 
 .. code-block:: console
@@ -165,7 +160,7 @@ murano applications repository:
    # murano --murano-repo-url=http://storage.apps.openstack.org \
    package-import io.murano.databases.MySql
 
-This command supports an optional ``--version`` parameter that instructs
+This command supports an optional ``--package-version`` parameter that instructs
 murano client to download a specified package version.
 
 The :command:`package-import` command inspects package requirements
@@ -204,11 +199,11 @@ murano applications repository using the package URL:
   # murano package-import http://storage.apps.openstack.org/apps/io.murano.databases.MySql.zip
   Inspecting required images
   Importing package io.murano.databases.MySql
-  +----------------------------------+-------+--------------------------+--------------+----------+
-  | ID                               | Name  | FQN                      | Author       | Is Public|
-  +----------------------------------+-------+-----------------------------------------+----------+
-  | 1aa62196595f411399e4e48cc2f6a512 | MySQL | io.murano.databases.MySql| Mirantis, Inc|          |
-  +----------------------------------+-------+-----------------------------------------+----------+
+  +----------------------------------+-------+--------------------------+--------------+--------+----------+------------+
+  | ID                               | Name  | FQN                      | Author       | Active | Is Public| Type       |
+  +----------------------------------+-------+-----------------------------------------+--------+----------+------------+
+  | 1aa62196595f411399e4e48cc2f6a512 | MySQL | io.murano.databases.MySql| Mirantis, Inc| True   |          | Application|
+  +----------------------------------+-------+-----------------------------------------+--------+----------+------------+
 
 .. _cli_bundles:
 
@@ -222,8 +217,7 @@ several different ways:
 * :ref:`from an URL <cli_bundle_url>`
 * :ref:`from murano app repository <cli_bundle_repo>`
 
-When importing bundles, you can specify their categories with
-``-c/--categories`` and set their publicity with ``--public``.
+When importing bundles, you can set their publicity with ``--is-public``.
 
 .. _cli_local_bundle:
 
@@ -252,12 +246,12 @@ The following example shows the import of a monitoring bundle:
  Inspecting required images
  Importing package io.murano.apps.ZabbixServer
  Importing package io.murano.apps.ZabbixAgent
- +----------------------------------+---------------+-----------------------------+---------------+-----------+
- | ID                               | Name          | FQN                         | Author        | Is Public |
- +----------------------------------+---------------+-----------------------------+---------------+-----------+
- | fb0b35359e384fe18158ff3ed8f969b5 | Zabbix Agent  | io.murano.apps.ZabbixAgent  | Mirantis, Inc |           |
- | 00a77e302a65420c8080dc97cc0f2723 | Zabbix Server | io.murano.apps.ZabbixServer | Mirantis, Inc |           |
- +----------------------------------+---------------+-----------------------------+---------------+-----------+
+ +----------------------------------+---------------+-----------------------------+---------------+--------+----------+------------+
+ | ID                               | Name          | FQN                         | Author        | Active | Is Public| Type       |
+ +----------------------------------+---------------+-----------------------------+---------------+--------+----------+------------+
+ | fb0b35359e384fe18158ff3ed8f969b5 | Zabbix Agent  | io.murano.apps.ZabbixAgent  | Mirantis, Inc | True   |          | Application|
+ | 00a77e302a65420c8080dc97cc0f2723 | Zabbix Server | io.murano.apps.ZabbixServer | Mirantis, Inc | True   |          | Application|
+ +----------------------------------+---------------+-----------------------------+---------------+--------+----------+------------+
 
 .. note::
 
@@ -322,16 +316,16 @@ ID, name, author and if it is public or not. For example:
 .. code-block:: console
 
  # murano package-list
- +----------------------------------+--------------------+----------------------------------------+---------------+-----------+
- | ID                               | Name               | FQN                                    | Author        | Is Public |
- +----------------------------------+--------------------+----------------------------------------+---------------+-----------+
- | daa46cfd78c74c11bcbe66d3239e546e | Apache HTTP Server | io.murano.apps.apache.ApacheHttpServer | Mirantis, Inc |           |
- | 5252c9897e864c9f940e08500056f155 | Cloud Foundry      | io.murano.apps.paas.CloudFoundry       | Mirantis, Inc |           |
- | 1aa62196595f411399e4e48cc2f6a512 | MySQL              | io.murano.databases.MySql              | Mirantis, Inc |           |
- | 11d73cfdc6d7447a910984d95090463b | SQL Library        | io.murano.databases                    | Mirantis, Inc |           |
- | fb0b35359e384fe18158ff3ed8f969b5 | Zabbix Agent       | io.murano.apps.ZabbixAgent             | Mirantis, Inc |           |
- | 00a77e302a65420c8080dc97cc0f2723 | Zabbix Server      | io.murano.apps.ZabbixServer            | Mirantis, Inc |           |
- +----------------------------------+--------------------+----------------------------------------+---------------+-----------+
+ +----------------------------------+--------------------+----------------------------------------+---------------+--------+----------+------------+
+ | ID                               | Name               | FQN                                    | Author        | Active | Is Public| Type       |
+ +----------------------------------+--------------------+----------------------------------------+---------------+--------+----------+------------+
+ | daa46cfd78c74c11bcbe66d3239e546e | Apache HTTP Server | io.murano.apps.apache.ApacheHttpServer | Mirantis, Inc | True   |          | Application|
+ | 5252c9897e864c9f940e08500056f155 | Cloud Foundry      | io.murano.apps.paas.CloudFoundry       | Mirantis, Inc | True   |          | Application|
+ | 1aa62196595f411399e4e48cc2f6a512 | MySQL              | io.murano.databases.MySql              | Mirantis, Inc | True   |          | Application|
+ | 11d73cfdc6d7447a910984d95090463b | SQL Library        | io.murano.databases                    | Mirantis, Inc | True   |          | Application|
+ | fb0b35359e384fe18158ff3ed8f969b5 | Zabbix Agent       | io.murano.apps.ZabbixAgent             | Mirantis, Inc | True   |          | Application|
+ | 00a77e302a65420c8080dc97cc0f2723 | Zabbix Server      | io.murano.apps.ZabbixServer            | Mirantis, Inc | True   |          | Application|
+ +----------------------------------+--------------------+----------------------------------------+---------------+--------+----------+------------+
 
 .. _cli_display:
 
@@ -430,3 +424,51 @@ composition, please see :ref:`Automatic package composing <compose_package>`.
 
 Manage categories
 ~~~~~~~~~~~~~~~~~
+
+In murano, applications can belong to a category or multiple categories.
+Administrative users can create and delete a category as well as list
+available categories and view details for a particular category.
+
+Create a category
+-----------------
+
+To create a category, use the following command specifying the category name:
+
+.. code-block:: console
+
+   murano category-create <NAME>
+
+List available categories
+-------------------------
+
+To get a list of all existing categories, run:
+
+.. code-block:: console
+
+   murano category-list
+
+Show category details
+---------------------
+
+To see packages that belong to a particular category, use the following
+command specifying the category ID:
+
+.. code-block:: console
+
+   murano category-show <ID>
+
+Delete a category
+-----------------
+
+To delete a category, use the following command specifying the ID of a
+category or multiple categories to delete:
+
+.. code-block:: console
+
+   murano category-delete <ID> [<ID> ...]
+
+.. note::
+
+   Verify that no packages belong to the category to be deleted, otherwise an
+   error appears. For this, use the :command:`murano category-show <ID>`
+   command.

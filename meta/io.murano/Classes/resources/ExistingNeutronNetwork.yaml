@@ -38,7 +38,8 @@ Properties:
 Workflow:
   initialize:
     Body:
-      - $._netExplorer: new(sys:NetworkExplorer)
+      - $environment: $.find(std:Environment).require()
+      - $._netExplorer: new(sys:NetworkExplorer, $environment)
       - $._networks: null
       - $._subnetworks: null
       - $._ports: null
@@ -152,6 +153,6 @@ Workflow:
           netName: $.internalNetworkName
           subnetId: $._internalSubnetworkId
           cidr: $subnet.cidr
-          dns: $._netExplorer.getDefaultDns()
+          dns: $subnet.dns_nameservers
           gateway: $subnet.gateway_ip
           floatingIpNetId: $._externalNetworkId

@@ -16,7 +16,7 @@
 
 import json
 
-from oslo_config import cfg
+from oslo_config import fixture as config_fixture
 from oslo_utils import timeutils
 
 from murano.api.v1 import environments
@@ -25,22 +25,13 @@ from murano.services import states
 import murano.tests.unit.api.base as tb
 import murano.tests.unit.utils as test_utils
 
-CONF = cfg.CONF
-
 
 class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
     def setUp(self):
         super(TestEnvironmentApi, self).setUp()
         self.controller = environments.Controller()
-
-    @staticmethod
-    def _configure_opts():
-        opts = [
-            cfg.StrOpt('config_dir'),
-            cfg.StrOpt('config_file', default='murano.conf'),
-            cfg.StrOpt('project', default='murano'),
-        ]
-        CONF.register_opts(opts)
+        self.fixture = self.useFixture(config_fixture.Config())
+        self.fixture.conf(args=[])
 
     def test_list_empty_environments(self):
         """Check that with no environments an empty list is returned."""
@@ -56,7 +47,6 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
     def test_list_all_tenants(self):
         """Check whether all_tenants param is taken into account."""
 
-        self._configure_opts()
         self._set_policy_rules(
             {'list_environments': '@',
              'create_environment': '@',
@@ -81,7 +71,6 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
     def test_create_environment(self):
         """Create an environment, test environment.show()."""
-        self._configure_opts()
         self._set_policy_rules(
             {'list_environments': '@',
              'create_environment': '@',
@@ -147,7 +136,6 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
     def test_unicode_environment_name_create(self):
         """Check that an unicode env name doesn't raise an HTTPClientError."""
-        self._configure_opts()
         self._set_policy_rules(
             {'list_environments': '@',
              'create_environment': '@',
@@ -178,7 +166,7 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
                       result_msg)
 
     def test_too_long_environment_name_create(self):
-        """Check that an too long env name results in an HTTPBadResquest."""
+        """Check that a too long env name results in an HTTPBadResquest."""
         self._set_policy_rules(
             {'list_environments': '@',
              'create_environment': '@',
@@ -272,6 +260,30 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
 
         self.assertEqual(expected, json.loads(result.body))
 
+    def test_update_environment_with_invalid_name(self):
+        """Check that update an invalid env name results in
+        an HTTPBadResquest.
+        """
+        self._set_policy_rules(
+            {'update_environment': '@'}
+        )
+
+        self._create_fake_environment('env1', '111')
+
+        self.expect_policy_check('update_environment',
+                                 {'environment_id': '111'})
+
+        body = {
+            'name': '  '
+        }
+        req = self._put('/environments/111', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        msg = ('Environment name must contain at least one '
+               'non-white space symbol')
+        self.assertIn(msg, result_msg)
+
     def test_update_environment_with_existing_name(self):
         self._set_policy_rules(
             {'update_environment': '@'}
@@ -289,6 +301,30 @@ class TestEnvironmentApi(tb.ControllerTest, tb.MuranoApiTestCase):
         req = self._put('/environments/111', json.dumps(body))
         result = req.get_response(self.api)
         self.assertEqual(409, result.status_code)
+
+    def test_too_long_environment_name_update(self):
+        """Check that update a too long env name results in
+        an HTTPBadResquest.
+        """
+        self._set_policy_rules(
+            {'update_environment': '@'}
+        )
+
+        self._create_fake_environment('env1', '111')
+
+        self.expect_policy_check('update_environment',
+                                 {'environment_id': '111'})
+        new_name = 'env1' * 64
+
+        body = {
+            'name': new_name
+        }
+        req = self._put('/environments/111', json.dumps(body))
+        result = req.get_response(self.api)
+        self.assertEqual(400, result.status_code)
+        result_msg = result.text.replace('\n', '')
+        self.assertIn('Environment name should be 255 characters maximum',
+                      result_msg)
 
     def test_delete_environment(self):
         """Test that environment deletion results in the correct rpc call."""

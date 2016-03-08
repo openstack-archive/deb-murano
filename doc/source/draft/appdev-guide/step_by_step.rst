@@ -139,9 +139,10 @@ stands for the "class" part of the name:
    FullName: io.murano.apps.apache.ApacheHttpServer
 
 .. note::
+
    It is not necessary that all applications belong to one domain.
    This naming allows to determine an application group by its name.
-   Openstack-related applications may have full names, started with
+   OpenStack-related applications may have full names, started with
    ``org.openstack.apps``, for example, ``org.openstack.apps.Rally``
 
 
@@ -417,6 +418,9 @@ Here is how the second dialog looks like:
 
 .. image:: step_2.png
 
+
+For more information about Dynamic UI, please refer to
+:ref:`the main reference <DynamicUISpec>`.
 
 .. _step_5_class_definition:
 

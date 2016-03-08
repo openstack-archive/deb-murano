@@ -20,6 +20,7 @@ import re
 import sys
 
 import semantic_version
+import six
 
 from murano.packages import exceptions
 from murano.packages import package
@@ -108,6 +109,10 @@ class PackageBase(package.Package):
         return self._load_image(self._logo, 'logo.png', 'logo')
 
     @property
+    def meta(self):
+        return None
+
+    @property
     def supplier_logo(self):
         return self._load_image(
             self._supplier.get('Logo'), 'supplier_logo.png', 'supplier logo')
@@ -131,8 +136,10 @@ class PackageBase(package.Package):
                 return stream.read()
         except Exception as ex:
             trace = sys.exc_info()[2]
-            raise exceptions.PackageLoadError(
-                'Unable to load {0}: {1}'.format(what_image, ex)), None, trace
+            six.reraise(exceptions.PackageLoadError,
+                        exceptions.PackageLoadError(
+                            'Unable to load {0}: {1}'.format(what_image, ex)),
+                        trace)
 
     @staticmethod
     def _check_full_name(full_name):

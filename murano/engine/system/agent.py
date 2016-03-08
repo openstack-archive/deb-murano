@@ -16,16 +16,16 @@
 import copy
 import datetime
 import os
-import urlparse
 import uuid
 
 import eventlet.event
 from oslo_config import cfg
 from oslo_log import log as logging
+import six
 from yaql import specs
 
 import murano.common.exceptions as exceptions
-import murano.common.messaging as messaging
+from murano.common.messaging import message
 from murano.dsl import dsl
 import murano.engine.system.common as common
 
@@ -39,21 +39,17 @@ class AgentException(Exception):
 
 @dsl.name('io.murano.system.Agent')
 class Agent(object):
-    def __init__(self, interfaces, host):
+    def __init__(self, host):
         self._enabled = False
         if CONF.engine.disable_murano_agent:
             LOG.debug('Use of murano-agent is disallowed '
                       'by the server configuration')
             return
 
-        self._environment = self._get_environment(interfaces, host)
+        self._environment = host.find_owner('io.murano.Environment')
         self._enabled = True
         self._queue = str('e%s-h%s' % (
             self._environment.id, host.id)).lower()
-
-    def _get_environment(self, interfaces, host):
-        return interfaces.yaql()(
-            "$.find('io.murano.Environment').require()", host)
 
     @property
     def enabled(self):
@@ -79,7 +75,7 @@ class Agent(object):
                 'by the server configuration')
 
     def _prepare_message(self, template, msg_id):
-        msg = messaging.Message()
+        msg = message.Message()
         msg.body = template
         msg.id = msg_id
         return msg
@@ -120,7 +116,7 @@ class Agent(object):
             return None
 
     @specs.parameter(
-        'resources', dsl.MuranoType('io.murano.system.Resources'))
+        'resources', dsl.MuranoObjectParameter('io.murano.system.Resources'))
     def call(self, template, resources, timeout=None):
         if timeout is None:
             timeout = CONF.engine.agent_timeout
@@ -129,7 +125,7 @@ class Agent(object):
         return self._send(plan, True, timeout)
 
     @specs.parameter(
-        'resources', dsl.MuranoType('io.murano.system.Resources'))
+        'resources', dsl.MuranoObjectParameter('io.murano.system.Resources'))
     def send(self, template, resources):
         self._check_enabled()
         plan = self.build_execution_plan(template, resources())
@@ -258,7 +254,7 @@ class Agent(object):
 
     def _is_url(self, file):
         file = self._get_url(file)
-        parts = urlparse.urlsplit(file)
+        parts = six.moves.urllib.parse.urlsplit(file)
         if not parts.scheme or not parts.netloc:
             return False
         else:
