@@ -11,6 +11,7 @@ murano (1:2.0.0~b3-1) experimental; urgency=medium
   * Fixed (build-)depends for this release.
   * Sets DISCOVER_DIRECTORY=$(CURDIR)/murano/tests/unit instead of patching the
     .testr.conf file.
+  * Standards-Version: 3.9.7 (no change).
 
  -- Thomas Goirand <zigo@debian.org>  Tue, 08 Mar 2016 16:07:00 +0100
 
