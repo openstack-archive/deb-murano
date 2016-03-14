@@ -46,6 +46,13 @@ override_dh_auto_build:
 
 override_dh_install:
 	dh_install -O--buildsystem=python_distutils --fail-missing
+
+	# PBR misses some files, let's force them in
+	cp -rf murano/* $(CURDIR)/debian/python-murano/usr/lib/python2.7/dist-packages/murano
+	rm $(CURDIR)/debian/python-murano/usr/lib/python2.7/dist-packages/murano/tests/functional/engine/io.murano.apps.test.ApacheHttpServerCustom/LICENSE
+	rm $(CURDIR)/debian/python-murano/usr/lib/python2.7/dist-packages/murano/tests/functional/engine/io.murano.apps.test.Lighttpd/LICENSE
+	rm $(CURDIR)/debian/python-murano/usr/lib/python2.7/dist-packages/murano/tests/functional/engine/io.murano.apps.test.UpdateExecutor/LICENSE
+
 	# Get the main config file to use decent defaults.
 	mkdir -p $(CURDIR)/debian/murano-common/usr/share/murano-common
 	oslo-config-generator --output-file $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf \

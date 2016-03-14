@@ -1,3 +1,9 @@
+murano (1:2.0.0~b3-2) experimental; urgency=medium
+
+  * Install missing files (alembic.ini, locale, etc.).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 14 Mar 2016 13:40:03 +0000
+
 murano (1:2.0.0~b3-1) experimental; urgency=medium
 
   [ Ivan Udovichenko ]
