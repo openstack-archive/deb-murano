@@ -1,3 +1,9 @@
+murano (1:2.0.0~rc1-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 22 Mar 2016 14:16:30 +0100
+
 murano (1:2.0.0~b3-2) experimental; urgency=medium
 
   * Install missing files (alembic.ini, locale, etc.).
