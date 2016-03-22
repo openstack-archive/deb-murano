@@ -15,6 +15,7 @@
 
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_middleware import cors
 
 from murano.common.i18n import _
 from murano import version
@@ -145,7 +146,21 @@ murano_opts = [
     cfg.ListOpt('enabled_plugins',
                 help="List of enabled Extension Plugins. "
                      "Remove or leave commented to enable all installed "
-                     "plugins.")
+                     "plugins."),
+
+    cfg.IntOpt('package_size_limit', default=5,
+               help='Maximum application package size, Mb',
+               deprecated_group='packages_opts'),
+
+    cfg.IntOpt('limit_param_default', default=20,
+               help='Default value for package pagination in API.',
+               deprecated_group='packages_opts'),
+
+    cfg.IntOpt('api_limit_max', default=100,
+               help='Maximum number of packages to be returned in a single '
+                    'pagination request',
+               deprecated_group='packages_opts'),
+
 ]
 
 networking_opts = [
@@ -180,6 +195,7 @@ networking_opts = [
                help='If provided networking configuration will be taken '
                     'from this file')
 ]
+
 stats_opts = [
     cfg.IntOpt('period', default=5,
                help=_('Statistics collection interval in minutes.'
@@ -200,43 +216,35 @@ engine_opts = [
                help=_('Time for waiting for a response from murano agent '
                       'during the deployment')),
     cfg.IntOpt('workers',
-               help=_('Number of workers'))
+               help=_('Number of workers')),
+
+    cfg.ListOpt('load_packages_from', default=[],
+                help=_('List of directories to load local packages from. '
+                       'If not provided, packages will be loaded only API'),
+                deprecated_group='packages_opts'),
+
+    cfg.StrOpt('packages_cache',
+               help='Location (directory) for Murano package cache.',
+               deprecated_group='packages_opts'),
+
+    cfg.BoolOpt('enable_packages_cache', default=True,
+                help=_('Enables murano-engine to persist on disk '
+                       'packages downloaded during deployments. '
+                       'The packages would be re-used for consequent '
+                       'deployments.'),
+                deprecated_group='packages_opts'),
+
+    cfg.StrOpt('packages_service', default='murano',
+               help=_('The service to store murano packages: murano (stands '
+                      'for legacy behavior using murano-api) or glance '
+                      '(stands for glance-glare artifact service)'),
+               deprecated_group='packages_opts'),
 ]
 
 # TODO(sjmc7): move into engine opts?
 metadata_dir = [
     cfg.StrOpt('metadata-dir', default='./meta',
                help='Metadata dir')
-]
-
-packages_opts = [
-    cfg.StrOpt('packages_cache',
-               help='Location (directory) for Murano package cache.'),
-
-    cfg.BoolOpt('enable_packages_cache', default=True,
-                help=_('Enables murano-engine to persist on disk '
-                       'packages downloaded during deployments. '
-                       'The packages would be re-used for consequent '
-                       'deployments.')),
-
-    cfg.ListOpt('load_packages_from', default=[],
-                help=_('List of directories to load local packages from. '
-                       'If not provided, packages will be loaded only API')),
-
-    cfg.IntOpt('package_size_limit', default=5,
-               help='Maximum application package size, Mb'),
-
-    cfg.IntOpt('limit_param_default', default=20,
-               help='Default value for package pagination in API.'),
-
-    cfg.IntOpt('api_limit_max', default=100,
-               help='Maximum number of packages to be returned in a single '
-                    'pagination request'),
-
-    cfg.StrOpt('packages_service', default='murano',
-               help=_('The service to store murano packages: murano (stands '
-                      'for legacy behavior using murano-api) or glance '
-                      '(stands for glance-glare artifact service)'))
 ]
 
 glare_opts = [
@@ -290,7 +298,6 @@ CONF.register_opts(engine_opts, group='engine')
 CONF.register_opts(file_server)
 CONF.register_opt(home_region)
 CONF.register_cli_opts(metadata_dir)
-CONF.register_opts(packages_opts, group='packages_opts')
 CONF.register_opts(stats_opts, group='stats')
 CONF.register_opts(networking_opts, group='networking')
 CONF.register_opts(glare_opts, group='glare')
@@ -303,3 +310,28 @@ def parse_args(args=None, usage=None, default_config_files=None):
          version=version.version_string,
          usage=usage,
          default_config_files=default_config_files)
+
+
+def set_middleware_defaults():
+    """Update default configuration options for oslo.middleware."""
+    # CORS Defaults
+    # TODO(krotscheck): Update with https://review.openstack.org/#/c/285368/
+    cfg.set_defaults(cors.CORS_OPTS,
+                     allow_headers=['X-Auth-Token',
+                                    'X-Openstack-Request-Id',
+                                    'X-Configuration-Session',
+                                    'X-Roles',
+                                    'X-User-Id',
+                                    'X-Tenant-Id'],
+                     expose_headers=['X-Auth-Token',
+                                     'X-Openstack-Request-Id',
+                                     'X-Configuration-Session',
+                                     'X-Roles',
+                                     'X-User-Id',
+                                     'X-Tenant-Id'],
+                     allow_methods=['GET',
+                                    'PUT',
+                                    'POST',
+                                    'DELETE',
+                                    'PATCH']
+                     )
