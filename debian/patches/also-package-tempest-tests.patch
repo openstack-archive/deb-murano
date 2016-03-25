@@ -1,0 +1,15 @@
+Description: Also package tempest test suite
+Author: Thomas Goirand <zigo@debian.org>
+Forwarded: URL
+Last-Update: 2016-03-25
+
+--- murano-2.0.0~rc1.orig/setup.cfg
++++ murano-2.0.0~rc1/setup.cfg
+@@ -34,6 +34,7 @@ classifier =
+ [files]
+ packages =
+     murano
++    murano_tempest_tests
+ 
+ [global]
+ setup-hooks =
