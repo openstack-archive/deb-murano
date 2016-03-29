@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: murano 2015.1.0-1\n"
 "Report-Msgid-Bugs-To: murano@packages.debian.org\n"
-"POT-Creation-Date: 2014-09-25 20:13+0800\n"
+"POT-Creation-Date: 2016-03-29 13:48+0000\n"
 "PO-Revision-Date: 2015-05-07 01:13+0100\n"
 "Last-Translator: Américo Monteiro <a_monteiro@gmx.com>\n"
 "Language-Team: Portuguese <traduz@debianpt.org>\n"
@@ -216,9 +216,14 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../murano-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Note that you will need to have an up and running Keystone server on "
+#| "which to connect using the Keystone authentication token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
-"to connect using the Keystone authentication token."
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
 msgstr ""
 "Note que irá precisar de ter um servidor Keystone a funcionar no qual ligar "
 "usando o sinal de autenticação do Keystone."
@@ -240,38 +245,55 @@ msgstr ""
 "possa contactar o Keystone para fazer o serviço Murano e a criação do "
 "\"endpoint\"."
 
-#. Type: password
+#. Type: string
 #. Description
 #: ../murano-api.templates:4001
-msgid "Keystone authentication token:"
+#, fuzzy
+#| msgid "Keystone authentication token:"
+msgid "Keystone admin name:"
 msgstr "Sinal de autenticação do Keystone:"
 
+#. Type: string
+#. Description
+#. Type: string
+#. Description
 #. Type: password
 #. Description
-#: ../murano-api.templates:4001
+#: ../murano-api.templates:4001 ../murano-api.templates:5001
+#: ../murano-api.templates:6001
 msgid ""
-"To configure its endpoint in Keystone, murano-api needs the Keystone "
-"authentication token."
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
 msgstr ""
-"Para configurar o seu endpoint no Keystone, o murano-api precisa do "
-"sinal de autenticação do Keystone."
 
 #. Type: string
 #. Description
 #: ../murano-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../murano-api.templates:6001
+msgid "Keystone admin password:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:7001
 msgid "Murano endpoint IP address:"
 msgstr "Endereço IP endpoint do Murano:"
 
 #. Type: string
 #. Description
-#: ../murano-api.templates:5001
+#: ../murano-api.templates:7001
 msgid "Please enter the IP address that will be used to contact Murano."
 msgstr ""
 "Por favor indique o endereço IP que será usado para contactar o Murano."
 
 #. Type: string
 #. Description
-#: ../murano-api.templates:5001
+#: ../murano-api.templates:7001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -283,13 +305,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../murano-api.templates:6001
+#: ../murano-api.templates:8001
 msgid "Name of the region to register:"
 msgstr "Nome da região a registar:"
 
 #. Type: string
 #. Description
-#: ../murano-api.templates:6001
+#: ../murano-api.templates:8001
 msgid ""
 "OpenStack supports using availability zones, with each region representing a "
 "location. Please enter the zone that you wish to use when registering the "
@@ -299,3 +321,9 @@ msgstr ""
 "representar um local. Por favor indique a zona que deseja usar ao registar o "
 "endpoint."
 
+#~ msgid ""
+#~ "To configure its endpoint in Keystone, murano-api needs the Keystone "
+#~ "authentication token."
+#~ msgstr ""
+#~ "Para configurar o seu endpoint no Keystone, o murano-api precisa do sinal "
+#~ "de autenticação do Keystone."

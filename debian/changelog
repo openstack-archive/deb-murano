@@ -1,3 +1,9 @@
+murano (1:2.0.0~rc1-3) experimental; urgency=medium
+
+  * Do not use Keystone admin auth token to register API endpoints.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 29 Mar 2016 13:48:52 +0000
+
 murano (1:2.0.0~rc1-2) experimental; urgency=medium
 
   * Add patch to also package murano_tempest_tests.
