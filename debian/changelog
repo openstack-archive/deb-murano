@@ -1,5 +1,6 @@
-murano (1:2.0.0~rc1-4) unstable; urgency=medium
+murano (1:2.0.0~rc3-1) unstable; urgency=medium
 
+  * New upstream release.
   * Uploading to unstable.
   * Updated de.po debconf translation (Closes: #819364).
 
