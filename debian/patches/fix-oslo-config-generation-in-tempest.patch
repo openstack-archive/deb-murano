@@ -1,0 +1,14 @@
+Description: Fix oslo-config-generator in tempest
+Author: Matthew Treinish <mtreinish@kortar.org>
+Forwarded: no
+Last-Update: 2016-04-27
+
+--- murano-2.0.0.orig/murano_tempest_tests/plugin.py
++++ murano-2.0.0/murano_tempest_tests/plugin.py
+@@ -44,4 +44,5 @@ class MuranoTempestPlugin(plugins.Tempes
+         return [(config_application_catalog.application_catalog_group.name,
+                  config_application_catalog.ApplicationCatalogGroup),
+                 (config_application_catalog.service_broker_group.name,
+-                 config_application_catalog.ServiceBrokerGroup)]
++                 config_application_catalog.ServiceBrokerGroup),
++		('service_available', config_application_catalog.ServiceAvailableGroup)]

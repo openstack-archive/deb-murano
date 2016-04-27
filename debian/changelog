@@ -5,6 +5,7 @@ murano (1:2.0.0-2) UNRELEASED; urgency=medium
 
   [ Thomas Goirand ]
   * Updated Portuguese translation for debconf messages (Closes: #821244).
+  * Added patch to fix tempest.conf when python-murano is installed.
 
  -- Thomas Goirand <zigo@debian.org>  Fri, 22 Apr 2016 00:27:23 +0200
 
