@@ -2,14 +2,14 @@
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2015.
+# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2015, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: murano\n"
+"Project-Id-Version: murano_1_2.0.0-1\n"
 "Report-Msgid-Bugs-To: murano@packages.debian.org\n"
 "POT-Creation-Date: 2016-03-29 13:48+0000\n"
-"PO-Revision-Date: 2015-06-19 21:47+0200\n"
+"PO-Revision-Date: 2016-04-23 22:06+0200\n"
 "Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
 "Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
 "Language: nl\n"
@@ -32,8 +32,8 @@ msgid ""
 "No database has been set up for Murano to use. Before continuing, you should "
 "make sure you have the following information:"
 msgstr ""
-"Er werd nog geen database opgezet om door Murano gebruikt te worden. Zorg er "
-"voor dat u de volgende informatie bij de hand heeft vooraleer verder te gaan:"
+"Er werd geen database opgezet om door Murano gebruikt te worden. Voor u "
+"doorgaat moet u beschikken over de volgende informatie:"
 
 #. Type: boolean
 #. Description
@@ -58,8 +58,8 @@ msgid ""
 "If some of these requirements are missing, do not choose this option and run "
 "with regular SQLite support."
 msgstr ""
-"Indien niet aan al deze vereisten voldaan is, zou u deze optie niet moeten "
-"kiezen en gebruik moeten maken van de reguliere SQLite-ondersteuning."
+"Indien sommige van deze gegevens ontbreken, moet u deze optie niet kiezen en "
+"de toepassing gebruiken met gewone SQLite-ondersteuning."
 
 #. Type: boolean
 #. Description
@@ -68,8 +68,8 @@ msgid ""
 "You can change this setting later on by running \"dpkg-reconfigure -plow "
 "murano-common\"."
 msgstr ""
-"U kunt deze instelling later wijzigen door het uitvoeren van de opdracht "
-"\"dpkg-reconfigure -plow murano-common\"."
+"U kunt deze instelling later wijzigen door het uitvoeren van \"dpkg-"
+"reconfigure -plow murano-common\"."
 
 #. Type: string
 #. Description
@@ -98,7 +98,7 @@ msgstr ""
 #. proprietaire ("tenant")
 #: ../murano-common.templates:4001
 msgid "Authentication server tenant name:"
-msgstr "Naam van de clientruimte (tenant) op de authenticatieserver:"
+msgstr "Naam van de cliëntruimte (tenant) op de authenticatieserver:"
 
 #. Type: string
 #. Description
@@ -112,7 +112,7 @@ msgstr "Naam van de clientruimte (tenant) op de authenticatieserver:"
 #: ../murano-common.templates:4001
 msgid "Please specify the authentication server tenant name."
 msgstr ""
-"Geef de naam op van de clientruimte (tenant) op de authenticatieserver."
+"Geef de naam op van de cliëntruimte (tenant) op de authenticatieserver."
 
 #. Type: string
 #. Description
@@ -125,7 +125,7 @@ msgstr "Gebruikersnaam op de authenticatieserver:"
 #: ../murano-common.templates:5001
 msgid "Please specify the username to use with the authentication server."
 msgstr ""
-"Vermeld de gebruikersnaam die op de authenticatieserver gebruikt zal worden."
+"Geef de gebruikersnaam op die op de authenticatieserver gebruikt moet worden."
 
 #. Type: password
 #. Description
@@ -138,7 +138,7 @@ msgstr "Wachtwoord op de authenticatieserver:"
 #: ../murano-common.templates:6001
 msgid "Please specify the password to use with the authentication server."
 msgstr ""
-"Vermeld het wachtwoord dat op de authenticatieserver gebruikt zal worden."
+"Geef het wachtwoord op dat op de authenticatieserver gebruikt moet worden."
 
 #. Type: string
 #. Description
@@ -158,14 +158,14 @@ msgid ""
 "In order to interoperate with other components of OpenStack, this package "
 "needs to connect to a central RabbitMQ server."
 msgstr ""
-"Om met andere componenten van OpenStack te kunnen samenwerken, moet dit "
-"pakket een verbinding maken met een centrale RabbitMQ-server."
+"Om met andere componenten van OpenStack samen te werken, moet dit pakket een "
+"verbinding maken met een centrale RabbitMQ-server."
 
 #. Type: string
 #. Description
 #: ../murano-common.templates:7001
 msgid "Please specify the IP address of that server."
-msgstr "Gelieve het IP-adres van die server op te geven."
+msgstr "Geef het IP-adres op van die server."
 
 #. Type: string
 #. Description
@@ -178,7 +178,7 @@ msgstr "Gebruikersnaam voor de verbinding met de RabbitMQ-server:"
 #: ../murano-common.templates:8001
 msgid "Please specify the username used to connect to the RabbitMQ server."
 msgstr ""
-"Vermeld de gebruikersnaam waarmee verbinding gemaakt wordt met de RabbitMQ-"
+"Geef de gebruikersnaam op waarmee verbinding gemaakt wordt met de RabbitMQ-"
 "server."
 
 #. Type: password
@@ -192,7 +192,7 @@ msgstr "Wachtwoord voor de verbinding met de RabbitMQ-server:"
 #: ../murano-common.templates:9001
 msgid "Please specify the password used to connect to the RabbitMQ server."
 msgstr ""
-"Geef op welk wachtwoord gebruikt wordt om verbinding te maken met de "
+"Geef het wachtwoord op dat gebruikt wordt om verbinding te maken met de "
 "RabbitMQ-server."
 
 #. Type: boolean
@@ -216,7 +216,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../murano-api.templates:2001
-#, fuzzy
 #| msgid ""
 #| "Note that you will need to have an up and running Keystone server on "
 #| "which to connect using the Keystone authentication token."
@@ -225,8 +224,10 @@ msgid ""
 "to connect using a known admin project name, admin username and password. "
 "The admin auth token is not used anymore."
 msgstr ""
-"Merk op dat u een volledig functionele Keystone-server nodig heeft waarmee u "
-"verbinding kunt maken met behulp van het authenticatiebewijs voor Keystone."
+"Merk op dat u een functionerende Keystone-server moet hebben om er een "
+"verbinding mee te maken met behulp van een gekende beheerdersprojectnaam, "
+"beheerdersgebruikersnaam en wachtwoord. Het beheerderslegitimatiebewijs "
+"wordt niet langer gebruikt"
 
 #. Type: string
 #. Description
@@ -241,17 +242,15 @@ msgid ""
 "Please enter the IP address of the Keystone server, so that murano-api can "
 "contact Keystone to do the Murano service and endpoint creation."
 msgstr ""
-"Gelieve het IP-adres van de Keystone-server op te geven, zodat murano-api "
-"Keystone kan contacteren om de Murano-service en het toegangspunt aan te "
-"maken."
+"Geef het IP-adres van de Keystone-server op, zodat murano-api Keystone kan "
+"contacteren om de Muranodienst en het toegangspunt aan te maken."
 
 #. Type: string
 #. Description
 #: ../murano-api.templates:4001
-#, fuzzy
 #| msgid "Keystone authentication token:"
 msgid "Keystone admin name:"
-msgstr "Authenticatiebewijs voor Keystone:"
+msgstr "Naam van de beheerder voor Keystone:"
 
 #. Type: string
 #. Description
@@ -265,18 +264,21 @@ msgid ""
 "To register the service endpoint, this package needs to know the Admin "
 "login, name, project name, and password to the Keystone server."
 msgstr ""
+"Om het toegangspunt van de dienst te registreren moet dit pakket de "
+"inloggegevens voor de Keystone-server van de beheerder kennen, naam, "
+"projectnaam en wachtwoord."
 
 #. Type: string
 #. Description
 #: ../murano-api.templates:5001
 msgid "Keystone admin project name:"
-msgstr ""
+msgstr "Naam van het project van de beheerder voor Keystone:"
 
 #. Type: password
 #. Description
 #: ../murano-api.templates:6001
 msgid "Keystone admin password:"
-msgstr ""
+msgstr "Wachtwoord van de beheerder voor Keystone:"
 
 #. Type: string
 #. Description
@@ -289,8 +291,7 @@ msgstr "IP-adres van het toegangspunt van Murano:"
 #: ../murano-api.templates:7001
 msgid "Please enter the IP address that will be used to contact Murano."
 msgstr ""
-"Gelieve het IP-adres in te voeren dat gebruikt zal worden om contact te "
-"maken met Murano."
+"Geef het IP-adres op dat gebruikt zal worden voor het contact met Murano."
 
 #. Type: string
 #. Description
@@ -300,9 +301,9 @@ msgid ""
 "service, so if you are installing a public cloud, this should be a public IP "
 "address."
 msgstr ""
-"Dit IP-adres moet bereikbaar zijn vanaf de clients die van deze service "
-"gebruik zullen maken. Indien u een openbare cloud installeert, moet dit dus "
-"een algemeen bereikbaar IP-adres zijn."
+"Dit IP-adres moet bereikbaar zijn voor de clients die deze dienst zullen "
+"gebruiken. Indien u een openbare cloud installeert, moet dit dus een "
+"algemeen bereikbaar IP-adres zijn."
 
 #. Type: string
 #. Description
@@ -318,7 +319,7 @@ msgid ""
 "location. Please enter the zone that you wish to use when registering the "
 "endpoint."
 msgstr ""
-"Openstack ondersteunt het gebruik van zones van beschikbaarheid, waarbij "
+"OpenStack ondersteunt het gebruik van zones van beschikbaarheid, waarbij "
 "elke regio een locatie vertegenwoordigt. Geef aan welke zone u wenst te "
 "gebruiken bij het registreren van het toegangspunt."
 
