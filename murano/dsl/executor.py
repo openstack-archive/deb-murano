@@ -21,6 +21,7 @@ import eventlet
 import eventlet.event
 from oslo_log import log as logging
 import six
+from yaql.language import exceptions as yaql_exceptions
 from yaql.language import specs
 from yaql.language import utils
 
@@ -109,7 +110,7 @@ class MuranoDslExecutor(object):
 
         if method.arguments_scheme is not None:
             args, kwargs = self._canonize_parameters(
-                method.arguments_scheme, args, kwargs)
+                method.arguments_scheme, args, kwargs, method.name, this)
 
         with self._acquire_method_lock(method, this):
             for i, arg in enumerate(args, 2):
@@ -203,12 +204,42 @@ class MuranoDslExecutor(object):
             raise
 
     @staticmethod
-    def _canonize_parameters(arguments_scheme, args, kwargs):
+    def _canonize_parameters(arguments_scheme, args, kwargs,
+                             method_name, receiver):
         arg_names = list(arguments_scheme.keys())
-        parameter_values = utils.filter_parameters_dict(kwargs)
+        parameter_values = {}
+        varargs_arg = None
+        vararg_values = []
+        kwargs_arg = None
+        kwarg_values = {}
+        for name, definition in six.iteritems(arguments_scheme):
+            if definition.usage == dsl_types.MethodArgumentUsages.VarArgs:
+                varargs_arg = name
+                parameter_values[name] = vararg_values
+            elif definition.usage == dsl_types.MethodArgumentUsages.KwArgs:
+                kwargs_arg = name
+                parameter_values[name] = kwarg_values
+
         for i, arg in enumerate(args):
-            name = arg_names[i]
-            parameter_values[name] = arg
+            name = None if i >= len(arg_names) else arg_names[i]
+            if name is None or name in (varargs_arg, kwargs_arg):
+                if varargs_arg:
+                    vararg_values.append(arg)
+                else:
+                    raise yaql_exceptions.NoMatchingMethodException(
+                        method_name, receiver)
+            else:
+                parameter_values[name] = arg
+
+        for name, value in six.iteritems(utils.filter_parameters_dict(kwargs)):
+            if name in arguments_scheme and name not in (
+                    varargs_arg, kwargs_arg):
+                parameter_values[name] = value
+            elif kwargs_arg:
+                kwarg_values[name] = value
+            else:
+                raise yaql_exceptions.NoMatchingMethodException(
+                    method_name, receiver)
         return tuple(), parameter_values
 
     def load(self, data):
@@ -274,13 +305,13 @@ class MuranoDslExecutor(object):
 
     def _list_potential_object_ids(self, data):
         if isinstance(data, dict):
+            for val in six.itervalues(data):
+                for res in self._list_potential_object_ids(val):
+                    yield res
             sys_dict = data.get('?')
             if (isinstance(sys_dict, dict) and
                     sys_dict.get('id') and sys_dict.get('type')):
                 yield sys_dict['id']
-            for val in six.itervalues(data):
-                for res in self._list_potential_object_ids(val):
-                    yield res
         elif isinstance(data, collections.Iterable) and not isinstance(
                 data, six.string_types):
             for val in data:

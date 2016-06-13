@@ -102,7 +102,7 @@ Murano optional arguments
 
 **-k, --insecure**
     Explicitly allow muranoclient to perform "insecure" SSL (https) requests.
-    The server's certificate willnot be verified against any certificate
+    The server's certificate will not be verified against any certificate
     authorities. This option should be used with caution.
 
 **--os-cacert <ca-certificate>**
@@ -121,7 +121,7 @@ Murano optional arguments
     Path of CA SSL certificate(s) used to verify the remote server certificate.
     Without this option glance looks for the default system CA certificates.
 
-**--api-timeout API_TIMEOUT
+**--api-timeout API_TIMEOUT**
     Number of seconds to wait for an API response, defaults to system socket
     timeout
 

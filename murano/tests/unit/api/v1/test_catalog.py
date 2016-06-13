@@ -27,12 +27,14 @@ from six.moves import range
 from murano.api.v1 import catalog
 from murano.db.catalog import api as db_catalog_api
 from murano.db import models
+from murano.packages import exceptions
 from murano.packages import load_utils
 import murano.tests.unit.api.base as test_base
 import murano.tests.unit.utils as test_utils
 
 
 class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
+
     def setUp(self):
         super(TestCatalogApi, self).setUp()
         self.controller = catalog.Controller()
@@ -164,7 +166,9 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self.assertEqual(2, len(result['packages']))
 
     def test_packages_filter_by_id(self):
-        """GET /catalog/packages with parameter "id" returns packages
+        """Test that packages are filtered by ID
+
+        GET /catalog/packages with parameter "id" returns packages
         filtered by id.
         """
         self._set_policy_rules(
@@ -199,7 +203,9 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
         self.assertEqual(expected_package.id, found_package['id'])
 
     def test_packages_filter_by_name(self):
-        """GET /catalog/packages with parameter "name" returns packages
+        """Test that packages are filtered by name
+
+        GET /catalog/packages with parameter "name" returns packages
         filtered by name.
         """
         self._set_policy_rules(
@@ -232,7 +238,9 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
                          res_pkgname2.json['packages'][0]['name'])
 
     def test_packages_filter_by_type(self):
-        """GET /catalog/packages with parameter "type" returns packages
+        """Test that packages are filtered by type
+
+        GET /catalog/packages with parameter "type" returns packages
         filtered by type.
         """
         self._set_policy_rules(
@@ -332,15 +340,15 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
             '/v1/catalog/packages/', params={'catalog': 'True'}))
         self.assertEqual(4, len(result['packages']))
 
-    def _test_package(self):
+    def _test_package(self, manifest='manifest.yaml'):
         package_dir = os.path.abspath(
             os.path.join(
                 __file__,
-                '../../../packages/test_packages/test.mpl.v1.app'
+                '../../../packages/test_packages/test.mpl.v1.app',
             )
         )
         pkg = load_utils.load_from_dir(
-            package_dir
+            package_dir, filename=manifest
         )
         package = {
             'fully_qualified_name': pkg.full_name,
@@ -359,6 +367,10 @@ class TestCatalogApi(test_base.ControllerTest, test_base.MuranoApiTestCase):
             'categories': [],
         }
         return pkg, package
+
+    def test_not_valid_logo(self):
+        self.assertRaises(exceptions.PackageLoadError,
+                          self._test_package, 'manifest_with_broken_logo.yaml')
 
     def test_load_package_with_supplier_info(self):
         self._set_policy_rules(
@@ -559,8 +571,7 @@ This is a fake zip archive
             self.assertEqual(200, res.status_code)
 
     def test_add_category(self):
-        """Check that category added successfully
-        """
+        """Check that category added successfully"""
 
         self._set_policy_rules({'add_category': '@'})
         self.expect_policy_check('add_category')
@@ -584,8 +595,7 @@ This is a fake zip archive
         self.assertDictEqual(expected, processed_result)
 
     def test_delete_category(self):
-        """Check that category deleted successfully
-        """
+        """Check that category deleted successfully"""
 
         self._set_policy_rules({'delete_category': '@'})
         self.expect_policy_check('delete_category',
@@ -606,8 +616,7 @@ This is a fake zip archive
         self.assertEqual(200, processed_result.status_code)
 
     def test_add_category_failed_for_non_admin(self):
-        """Check that non admin user couldn't add new category
-        """
+        """Check that non admin user couldn't add new category"""
 
         self._set_policy_rules({'add_category': 'role:context_admin'})
         self.is_admin = False
@@ -622,8 +631,10 @@ This is a fake zip archive
         self.assertEqual(403, result.status_code)
 
     def test_add_long_category(self):
-        """Check that category, that contains more then 80 characters
-           fails to add
+        """Test that category name does not exceed 80 characters
+
+        Check that a category that contains more then 80 characters
+        fails to be added
         """
 
         self._set_policy_rules({'add_category': '@'})

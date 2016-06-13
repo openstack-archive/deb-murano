@@ -54,8 +54,13 @@ rabbit_opts = [
     cfg.BoolOpt('ssl', default=False,
                 help='Boolean flag to enable SSL communication through the '
                 'RabbitMQ broker between murano-engine and guest agents.'),
+
     cfg.StrOpt('ca_certs', default='',
-               help='SSL cert file (valid only if SSL enabled).')
+               help='SSL cert file (valid only if SSL enabled).'),
+
+    cfg.BoolOpt('insecure', default=False,
+                help='This option explicitly allows Murano to perform '
+                     '"insecure" SSL connections to RabbitMQ'),
 ]
 
 heat_opts = [

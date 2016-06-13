@@ -1,7 +1,7 @@
-.. _actions:
-
 .. toctree::
    :maxdepth: 2
+
+.. _actions:
 
 ==============
 Murano actions
@@ -29,6 +29,10 @@ can be tracked.
 .. note::
  Actions may be called against any MuranoPL object, including ``Environment``,
  ``Application``, and any other objects.
+
+.. note::
+ Now murano doesn't support big files download during action execution. This is
+ because action results are stored in murano database and are limited by approximately 10kb size.
 
 To mark a method as an action, use ``Usage: Action``.
 

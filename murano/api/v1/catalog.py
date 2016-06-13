@@ -18,6 +18,8 @@ import os
 import tempfile
 
 import jsonschema
+from keystoneclient import exceptions as keystone_ex
+from keystoneclient import service_catalog
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
@@ -34,6 +36,7 @@ from murano.db.catalog import api as db_api
 from murano.common.i18n import _, _LW
 from murano.packages import exceptions as pkg_exc
 from murano.packages import load_utils
+from muranoclient.glance import client as glare_client
 
 
 LOG = logging.getLogger(__name__)
@@ -78,11 +81,13 @@ def _get_filters(query_params):
 
 
 def _validate_body(body):
-    """Check multipart/form-data has two parts: text (which is json string and
-       should parsed into dictionary in serializer) and file, which stores as
-       cgi.FieldStorage instance. Also validate file size doesn't exceed
-       the limit: seek to the end of the file, get the position of EOF and
-       reset the file position to the beginning
+    """Check multipart/form-data has two parts
+
+    Check multipart/form-data has two parts: text (which is json string and
+    should parsed into dictionary in serializer) and file, which stores as
+    cgi.FieldStorage instance. Also validate file size doesn't exceed
+    the limit: seek to the end of the file, get the position of EOF and
+    reset the file position to the beginning
     """
     def check_file_size(f):
         mb_limit = CONF.murano.package_size_limit
@@ -139,7 +144,9 @@ class Controller(object):
             return value
 
     def update(self, req, body, package_id):
-        """List of allowed changes:
+        """List of allowed changes
+
+        List of allowed changes:
             { "op": "add", "path": "/tags", "value": [ "foo", "bar" ] }
             { "op": "add", "path": "/categories", "value": [ "foo", "bar" ] }
             { "op": "remove", "path": "/tags" }
@@ -205,8 +212,10 @@ class Controller(object):
         return result
 
     def upload(self, req, body=None):
-        """Upload new file archive for the new package
-           together with package metadata.
+        """Upload new file archive
+
+        Upload new file archive for the new package
+        together with package metadata.
         """
         policy.check("upload_package", req.context)
 
@@ -266,11 +275,23 @@ class Controller(object):
             os.remove(tempf.name)
 
     def get_ui(self, req, package_id):
-        target = {'package_id': package_id}
-        policy.check("get_package", req.context, target)
+        if CONF.engine.packages_service == 'murano':
+            target = {'package_id': package_id}
+            policy.check("get_package", req.context, target)
 
-        package = db_api.package_get(package_id, req.context)
-        return package.ui_definition
+            package = db_api.package_get(package_id, req.context)
+            return package.ui_definition
+        else:
+            g_client = self._get_glare_client(req)
+            blob_data = g_client.artifacts.download_blob(package_id, 'archive')
+            with tempfile.NamedTemporaryFile() as tempf:
+                for chunk in blob_data:
+                    tempf.write(chunk)
+                tempf.file.flush()
+                os.fsync(tempf.file.fileno())
+                with load_utils.load_from_file(tempf.name, target_dir=None,
+                                               drop_dir=True) as pkg:
+                    return pkg.ui
 
     def get_logo(self, req, package_id):
         target = {'package_id': package_id}
@@ -312,7 +333,9 @@ class Controller(object):
         return {'categories': [category.name for category in categories]}
 
     def list_categories(self, req):
-        """List all categories with pagination and sorting
+        """List all categories
+
+        List all categories with pagination and sorting
            Acceptable filter params:
            :param sort_keys: an array of fields used to sort the list
            :param sort_dir: the direction of the sort ('asc' or 'desc')
@@ -391,6 +414,38 @@ class Controller(object):
                     "to the package, uploaded to the catalog")
             raise exc.HTTPForbidden(explanation=msg)
         db_api.category_delete(category_id)
+
+    def _get_glare_client(self, request):
+        glare_settings = CONF.glare
+        token = request.context.auth_token
+        url = glare_settings.url
+        if not url:
+            url = self._get_glare_url(request)
+        client = glare_client.Client(
+            endpoint=url, token=token, insecure=glare_settings.insecure,
+            key_file=glare_settings.key_file or None,
+            ca_file=glare_settings.ca_file or None,
+            cert_file=glare_settings.cert_file or None,
+            type_name='murano',
+            type_version=1)
+        return client
+
+    def _get_glare_url(self, request):
+        sc = request.context.service_catalog
+        token = request.context.auth_token
+        try:
+            return service_catalog.ServiceCatalogV2(
+                {'serviceCatalog': sc}).url_for(
+                service_type='artifact',
+                endpoint_type=CONF.glare.endpoint_type,
+                region_name=CONF.home_region)
+        except keystone_ex.EndpointNotFound:
+            return service_catalog.ServiceCatalogV3(
+                token,
+                {'catalog': sc}).url_for(
+                    service_type='artifact',
+                    endpoint_type=CONF.glare.endpoint_type,
+                    region_name=CONF.home_region)
 
 
 def create_resource():

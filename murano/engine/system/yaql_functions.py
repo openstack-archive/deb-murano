@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 import collections
 import random
 import re
@@ -22,6 +21,7 @@ import time
 
 import jsonpatch
 import jsonpointer
+from oslo_serialization import base64
 import six
 from yaql.language import specs
 from yaql.language import utils
@@ -40,13 +40,13 @@ _random_string_counter = None
 @specs.parameter('value', yaqltypes.String())
 @specs.extension_method
 def base64encode(value):
-    return base64.b64encode(value)
+    return base64.encode_as_text(value)
 
 
 @specs.parameter('value', yaqltypes.String())
 @specs.extension_method
 def base64decode(value):
-    return base64.b64decode(value)
+    return base64.decode_as_text(value)
 
 
 @specs.parameter('collection', yaqltypes.Iterable())
@@ -93,8 +93,14 @@ def _convert_macro_parameter(macro, mappings):
 
 @specs.parameter('group', yaqltypes.String())
 @specs.parameter('setting', yaqltypes.String())
-def config(group, setting):
-    return cfg.CONF[group][setting]
+@specs.parameter('read_as_file', bool)
+def config(group, setting, read_as_file=False):
+    config_value = cfg.CONF[group][setting]
+    if read_as_file:
+        with open(config_value) as target_file:
+            return target_file.read()
+    else:
+        return config_value
 
 
 @specs.parameter('setting', yaqltypes.String())
@@ -127,7 +133,9 @@ def patch_(engine, obj, patch):
 
 def _int2base(x, base):
     """Converts decimal integers into another number base
-     from base-2 to base-36.
+
+    Converts decimal integers into another number base
+    from base-2 to base-36.
 
     :param x: decimal integer
     :param base: number base, max value is 36
@@ -152,8 +160,10 @@ def _int2base(x, base):
 
 
 def random_name():
-    """Replace '#' char in pattern with supplied number, if no pattern is
-       supplied generate short and unique name for the host.
+    """Replace '#' char in pattern with supplied number
+
+    Replace '#' char in pattern with supplied number. If no pattern is
+    supplied, generate a short and unique name for the host.
 
     :param pattern: hostname pattern
     :param number: number to replace with in pattern

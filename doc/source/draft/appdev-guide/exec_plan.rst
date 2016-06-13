@@ -67,6 +67,8 @@ agent if any of the listed parameters is not specified.
 ==================  ===================================================
 
 
+.. _format_version:
+
 FormatVersion property
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -161,7 +163,7 @@ Please make sure the files specified in EntryPoint and Files sections exist.
 
    **Name**
     the filename; may include slashes to specify files located in nested
-    folders. The root directory is the ``Resoures/scripts`` directory.
+    folders. The root directory is the ``Resources/scripts`` directory.
 
    **BodyType**
     is one of the following:

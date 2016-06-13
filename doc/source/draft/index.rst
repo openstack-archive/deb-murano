@@ -74,6 +74,7 @@ Deploying Murano
    admin-guide/murano_agent
    admin-guide/policy_enf
    admin-guide/configure_cloud_foundry_service_broker
+   admin-guide/using_glare.rst
    admin-guide/admin_troubleshooting
 
 Developing Applications
@@ -87,10 +88,13 @@ Developing Applications
    appdev-guide/hot_packages
    appdev-guide/murano_pl
    appdev-guide/murano_packages
+   appdev-guide/murano_bundles
    appdev-guide/app_migrating
    appdev-guide/app_unit_tests
+   appdev-guide/cinder_volume_supporting
    appdev-guide/examples
    appdev-guide/use_cases
+   appdev-guide/app_debugging
    appdev-guide/faq
 
 Contributing
@@ -102,9 +106,10 @@ Contributing
    contributor-guide/how_to_contribute
    contributor-guide/dev_guidelines
    contributor-guide/plugins
-   contributor-guide/deploy_local_dev_env
+   contributor-guide/dev_env
    contributor-guide/testing
    contributor-guide/doc_guidelines
+   contributor-guide/stable_branches
 
 Appendix
 ~~~~~~~~

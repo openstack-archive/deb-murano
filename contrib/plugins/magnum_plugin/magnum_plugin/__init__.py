@@ -15,10 +15,10 @@
 import cfg
 import time
 
+import magnumclient
+from magnumclient import client
 from murano.common import auth_utils
 from murano.dsl import session_local_storage
-
-import magnumclient
 from oslo_config import cfg as config
 
 CONF = config.CONF
@@ -57,7 +57,7 @@ class MagnumClient(object):
         params = auth_utils.get_session_client_parameters(
             service_type='container', region=region, conf=CONF,
             session=session)
-        return magnumclient.client.Client(**params)
+        return client.Client(**params)
 
     def create_baymodel(self, args):
         baymodel = self._client.baymodels.create(**args)
@@ -66,11 +66,16 @@ class MagnumClient(object):
     def delete_baymodel(self, baymodel_id):
         self._client.baymodels.delete(baymodel_id)
 
+    def get_bay_status(self, bay_id):
+        bays = self._client.bays
+        bay = bays.get(bay_id)
+        return bay.status
+
     def create_bay(self, args):
         bays = self._client.bays
         bay = bays.create(**args)
         self._wait_on_status(bays, bay.uuid, [None, "CREATE_IN_PROGRESS"],
-                             ["CREATE_COMPLETE"])
+                             ["CREATE_COMPLETE", "CREATE_FAILED"])
         return bay.uuid
 
     def delete_bay(self, bay_id):

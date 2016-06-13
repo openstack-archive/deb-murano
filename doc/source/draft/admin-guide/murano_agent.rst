@@ -24,13 +24,20 @@ minimum units of the installation workflow.
 Murano-agent on a new VM
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Currently, most of the application deployments are possible only on images with
+Earlier most of the application deployments were possible only on images with
 pre-installed murano agent. You can refer to
-`corresponding documentation <http://murano.readthedocs.org/en/latest/image_builders/index.html#building-murano-image>`_
+:ref:`corresponding documentation <building_images>`
 on building an image with murano-agent.
 
-To make deployment with murano easier, the murano team is working on the
-murano-agent automatic installation with cloud-init.
+Currently murano-agent can be automatically installed by cloud-init. To deploy
+an application on an image with pre-installed cloud-init you should mark the
+image with Murano specific metadata. More information about preparing images
+can be found :ref:`here <upload_images>`. This type of installation has some
+limitations. The image has to have pre-installed python 2.7. Murano-agent is
+installed from PyPi so the instance should have connectivity with the Internet.
+Also it requires an installation of some python packages, e.g. python-pip,
+python-dev, python-setuptools, python-virtualenv, which are also installed by
+cloud-init.
 
 Interaction with murano-engine
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

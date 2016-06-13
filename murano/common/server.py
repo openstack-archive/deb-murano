@@ -17,10 +17,10 @@ import uuid
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging as messaging
-from oslo_messaging.notify import dispatcher as oslo_dispatcher
 from oslo_messaging import target
 from oslo_service import service
 from oslo_utils import timeutils
+import pytz
 from sqlalchemy import desc
 
 from murano.common.helpers import token_sanitizer
@@ -178,6 +178,9 @@ def report_notification(report):
     del report['id']
 
     status = models.Status()
+    if 'timestamp' in report:
+        dt = timeutils.parse_isotime(report.pop('timestamp'))
+        report['created'] = dt.astimezone(pytz.utc).replace(tzinfo=None)
     status.update(report)
 
     unit = session.get_session()
@@ -226,10 +229,10 @@ class NotificationService(Service):
 
         transport = messaging.get_transport(CONF)
         s_target = target.Target(topic='murano', server=str(uuid.uuid4()))
-        dispatcher = oslo_dispatcher.NotificationDispatcher(
-            [s_target], endpoints, None, True)
-        self.server = messaging.MessageHandlingServer(
-            transport, dispatcher, 'eventlet')
+
+        self.server = messaging.get_notification_listener(
+            transport, [s_target], endpoints, executor='eventlet')
+
         self.server.start()
         super(NotificationService, self).start()
 
