@@ -331,10 +331,12 @@ class HotPackage(package_base.PackageBase):
         ]
 
         destroy = [
+            {YAQL('$environment'): YAQL(
+                "$.find('io.murano.Environment').require()"
+            )},
             {YAQL('$stack'): YAQL(
-                "new('io.murano.system.HeatStack', "
+                "new('io.murano.system.HeatStack', $environment, "
                 "name => $.getAttr(generatedHeatStackName))")},
-
             YAQL('$stack.delete()')
         ]
 
@@ -490,12 +492,17 @@ class HotPackage(package_base.PackageBase):
         return translated
 
     @staticmethod
-    def _generate_application_ui(groups, type_name):
+    def _generate_application_ui(groups, type_name,
+                                 package_name=None, package_version=None):
         app = {
             '?': {
                 'type': type_name
             }
         }
+        if package_name:
+            app['?']['package'] = package_name
+        if package_version:
+            app['?']['classVersion'] = package_version
         for i, record in enumerate(groups):
             if i == 0:
                 section = app
@@ -525,7 +532,7 @@ class HotPackage(package_base.PackageBase):
         translated = {
             'Version': 2,
             'Application': HotPackage._generate_application_ui(
-                groups, self.full_name),
+                groups, self.full_name, self.full_name, str(self.version)),
             'Forms': forms
         }
 
