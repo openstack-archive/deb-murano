@@ -1,3 +1,12 @@
+murano (1:2.0.1-1) unstable; urgency=medium
+
+  * New upstream release:
+    - Fixes CVE-2016-4972: RCE vulnerability in Openstack Murano using insecure
+    YAML tags (Closes: #828062).
+  * Fixed (build-)depends for this release.
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 27 Jun 2016 19:19:58 +0000
+
 murano (1:2.0.0-2) unstable; urgency=medium
 
   [ Ondřej Nový ]
