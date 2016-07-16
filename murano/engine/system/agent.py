@@ -21,6 +21,7 @@ import uuid
 import eventlet.event
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_serialization import base64
 import six
 from yaql import specs
 
@@ -216,8 +217,8 @@ class Agent(object):
         scripts = []
         for script in script_files:
             script_path = os.path.join(scripts_folder, script)
-            scripts.append(resources.string(
-                script_path).encode('base64'))
+            script_path = base64.encode_as_text(script_path) + "\n"
+            scripts.append(resources.string(script_path, binary=True))
         template['Scripts'] = scripts
         return template
 
@@ -287,11 +288,13 @@ class Agent(object):
 
     def _get_body(self, file, resources, folder):
         use_base64 = self._is_base64(file)
-        if use_base64 and file.startswith('<') and file.endswith('>'):
-            file = file[1: -1]
-        body = resources.string(os.path.join(folder, file))
         if use_base64:
-            body = body.encode('base64')
+            path = os.path.join(folder, file[1: -1])
+            body = resources.string(path, binary=True)
+            body = base64.encode_as_text(body) + "\n"
+        else:
+            path = os.path.join(folder, file)
+            body = resources.string(path)
         return body
 
     def _is_base64(self, file):

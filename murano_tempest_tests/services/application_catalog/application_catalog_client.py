@@ -279,7 +279,8 @@ class ApplicationCatalogClient(rest_client.RestClient):
         return self._parse_resp(body)
 
     def create_env_template(self, env_template_name):
-        body = {'name': env_template_name, "is_public": False}
+        body = {'name': env_template_name, "is_public": False,
+                "description_text": "description"}
         uri = 'v1/templates'
         resp, body = self.post(uri, json.dumps(body))
         self.expected_success(200, resp.status)
@@ -331,6 +332,14 @@ class ApplicationCatalogClient(rest_client.RestClient):
         self.expected_success(200, resp.status)
         return json.loads(body)
 
+    def update_service_from_env_template(self, env_template_id, service_id,
+                                         post_body):
+        uri = 'v1/templates/{0}/services/{1}'.format(env_template_id,
+                                                     service_id)
+        resp, body = self.put(uri, json.dumps(post_body))
+        self.expected_success(200, resp.status)
+        return self._parse_resp(body)
+
     def delete_service_from_env_template(self, env_template_name, service_id):
         uri = 'v1/templates/{0}/services/{1}'.format(env_template_name,
                                                      service_id)
@@ -356,3 +365,22 @@ class ApplicationCatalogClient(rest_client.RestClient):
         resp, body = self.post(uri, json.dumps(body))
         self.expected_success(200, resp.status)
         return self._parse_resp(body)
+
+# ----------------------------Static action methods----------------------------
+    def call_static_action(self, class_name=None, method_name=None, args=None,
+                           package_name=None, class_version="=0"):
+        uri = 'v1/actions'
+        post_body = {
+            'parameters': args or {},
+            'packageName': package_name,
+            'classVersion': class_version
+        }
+        if class_name:
+            post_body['className'] = class_name
+        if method_name:
+            post_body['methodName'] = method_name
+
+        resp, body = self.post(uri, json.dumps(post_body))
+        self.expected_success(200, resp.status)
+        # _parse_resp() cannot be used because body is expected to be string
+        return body

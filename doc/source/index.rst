@@ -86,6 +86,7 @@ Using Murano
    draft/enduser-guide/log_in_to_murano_instance
    draft/enduser-guide/use_cli
    draft/enduser-guide/deploying_using_cli
+   articles/multi_region
 
 
 Developing Applications
@@ -141,6 +142,13 @@ Miscellaneous
    contributing
    guidelines
    articles/debug_tips
+
+**Gerrit review dashboard**
+
+.. toctree::
+   :maxdepth: 1
+
+   murano_gerrit_dashboard
 
 
 **API specification**

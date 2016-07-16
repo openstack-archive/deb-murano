@@ -15,11 +15,16 @@
 import cfg
 import time
 
-import magnumclient
 from magnumclient import client
 from murano.common import auth_utils
 from murano.dsl import session_local_storage
 from oslo_config import cfg as config
+
+try:
+    from magnumclient.common.apiclient import exceptions
+except ImportError:
+    # NOTE (hongbin): For magnumclient versions before 2.0.0.
+    from magnumclient.openstack.common.apiclient import exceptions
 
 CONF = config.CONF
 
@@ -55,7 +60,7 @@ class MagnumClient(object):
     def _create_magnum_client(region):
         session = auth_utils.get_token_client_session(conf=CONF)
         params = auth_utils.get_session_client_parameters(
-            service_type='container', region=region, conf=CONF,
+            service_type='container-infra', region=region, conf=CONF,
             session=session)
         return client.Client(**params)
 
@@ -85,5 +90,5 @@ class MagnumClient(object):
             self._wait_on_status(bays, bay_id, ["CREATE_COMPLETE",
                                  "DELETE_IN_PROGRESS", "CREATE_FAILED"],
                                  ["DELETE_COMPLETE"])
-        except magnumclient.openstack.common.apiclient.exceptions.NotFound:
+        except exceptions.NotFound:
             pass

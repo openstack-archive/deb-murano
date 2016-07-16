@@ -91,7 +91,10 @@ class TraverseHelper(object):
         parent_path = '/'.join(path.split('/')[:-1])
         node = TraverseHelper.get(parent_path, source)
         key = path[1:].split('/')[-1]
-        node[key] = value
+        if is_number(key):
+            node[int(key)] = value
+        else:
+            node[key] = value
 
     @staticmethod
     def insert(path, value, source):
@@ -137,6 +140,14 @@ class TraverseHelper(object):
             del node[key]
         else:
             raise ValueError(_('Source object or path is malformed'))
+
+
+def is_number(var):
+    try:
+        int(var)
+        return True
+    except Exception:
+        return False
 
 
 def is_different(obj1, obj2):

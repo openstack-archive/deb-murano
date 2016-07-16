@@ -154,6 +154,10 @@ The following contracts are available:
 | | A: StringMap                                            | | the dictionary with the ``A`` key that must be equal to ``StringMap``, and other keys be      |
 | | $.string().notNull(): $                                 | | any scalar or data structure                                                                  |
 +-----------------------------------------------------------+-------------------------------------------------------------------------------------------------+
+| | $.check($ in $this.myStaticMethod())                    | | the value must be equal to one of a member of a list returned by static method of the class   |
++-----------------------------------------------------------+-------------------------------------------------------------------------------------------------+
+| | $.check($this.myStaticMethod($))                        | | the static method of the class must return true for the value                                 |
++-----------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 
 In the example above property ``port`` must be int value greater than 0 and
 less than 65536; ``scope`` must be a string value and one of 'public', 'cloud',
@@ -282,7 +286,7 @@ Methods are defined in the Workflow section of the class using the
 following template::
 
   methodName:
-      Usage: Action
+      Scope: Public
       Arguments:
          - list
          - of
@@ -292,7 +296,7 @@ following template::
          - of
          - instructions
 
-Action is an optional parameter that specifies methods to be executed
+Public is an optional parameter that specifies methods to be executed
 by direct triggering after deployment.
 
 Arguments are optional too, and are declared using the same syntax
@@ -344,10 +348,28 @@ access it. The following usages are available:
 
    * - | Action
      - | Method can be invoked from outside (using Murano API).
+         This option is deprecated for the package format versions > 1.3 in
+         favor of ``Scope: Public`` and occasionally will be no longer
+         supported.
          See :ref:`actions` for details.
 
-The usage attribute is optional and can be omitted (which implies ``Runtime``).
+The ``Usage`` attribute is optional and can be omitted (which implies
+``Runtime``).
 
+Method scope
+++++++++++++
+
+The ``Scope`` attribute declares method visibility. It can have two possible
+values:
+
+* `Session` - regular method that is accessible from anywhere in the current
+  execution session. This is the default if the attribute is omitted;
+
+* `Public` - accessible anywhere, both within the session and from
+  outside through the API call.
+
+The ``Scope`` attribute is optional and can be omitted (which implies
+``Session``).
 
 Expressions
 +++++++++++

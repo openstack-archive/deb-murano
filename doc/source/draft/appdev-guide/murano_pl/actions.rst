@@ -32,9 +32,13 @@ can be tracked.
 
 .. note::
  Now murano doesn't support big files download during action execution. This is
- because action results are stored in murano database and are limited by approximately 10kb size.
+ because action results are stored in murano database and are limited by
+ approximately 10kb size.
 
-To mark a method as an action, use ``Usage: Action``.
+To mark a method as an action, use ``Scope: Public`` or ``Usage: Action``.
+The latter option is deprecated for the package format versions > 1.3 and
+occasionally will be no longer supported. Also, you cannot use both
+``Usage: Action`` and ``Scope: Session`` in one method.
 
 The following example shows an action that returns an archive with a
 configuration file:
@@ -42,7 +46,7 @@ configuration file:
 ::
 
  exportConfig:
-     Usage: Action
+     Scope: Public
      Body:
        - $._environment.reporter.report($this, 'Action exportConfig called')
        - $resources: new(sys:Resources)
@@ -79,3 +83,54 @@ Response:
         }
       }
     }
+
+
+==============
+Static actions
+==============
+
+Static methods (:ref:`static_methods_and_properties`) can also be called
+through the API if they are exposed by specifying ``Scope: Public``, and the
+result of its execution will be returned.
+
+Consider the following example of the static action that makes use both of
+static class property and user's input as an argument:
+
+::
+
+ Name: Bar
+
+ Properties:
+   greeting:
+     Usage: Static
+     Contract: $.string()
+     Default: 'Hello, '
+
+ Methods:
+   staticAction:
+     Scope: Public
+     Usage: Static
+     Arguments:
+       - myName:
+           Contract: $.string().notNull()
+     Body:
+       - Return: concat($.greeting, $myName)
+
+Request:
+``http://localhost:8082/v1/actions``
+
+Request body:
+
+.. code-block:: javascript
+
+    {
+      "className": "ns.Bar",
+      "methodName": "staticAction",
+      "parameters": {"myName": "John"}
+    }
+
+Responce:
+
+.. code-block:: javascript
+
+   "Hello, John"

@@ -41,9 +41,6 @@ class TestCaseShell(testtools.TestCase):
             k = '--os-' + k.replace('_', '-')
             self.args.extend([k, v])
 
-        sys.stdout = six.StringIO()
-        sys.stderr = six.StringIO()
-
         self.useFixture(fixtures.MonkeyPatch('keystoneclient.v3.client.Client',
                                              mock.MagicMock))
         dirs = [os.path.dirname(__file__),
@@ -57,27 +54,24 @@ class TestCaseShell(testtools.TestCase):
 
     def override_config(self, name, override, group=None):
         CONF.set_override(name, override, group, enforce_type=True)
+        CONF.set_override('use_stderr', True)
         self.addCleanup(CONF.clear_override, name, group)
 
     def shell(self, cmd_args=None, exitcode=0):
-        orig = sys.stdout
-        orig_stderr = sys.stderr
-        sys.stdout = six.StringIO()
-        sys.stderr = six.StringIO()
+        stdout = six.StringIO()
+        stderr = six.StringIO()
         args = self.args
         if cmd_args:
             cmd_args = cmd_args.split()
             args.extend(cmd_args)
-        with mock.patch.object(sys, 'argv', args):
-            result = self.assertRaises(SystemExit, test_runner.main)
-            self.assertEqual(result.code, exitcode,
-                             'Command finished with error.')
-        stdout = sys.stdout.getvalue()
-        sys.stdout.close()
-        sys.stdout = orig
-        stderr = sys.stderr.getvalue()
-        sys.stderr.close()
-        sys.stderr = orig_stderr
+        with mock.patch.object(sys, 'stdout', stdout):
+            with mock.patch.object(sys, 'stderr', stderr):
+                with mock.patch.object(sys, 'argv', args):
+                    result = self.assertRaises(SystemExit, test_runner.main)
+                    self.assertEqual(result.code, exitcode,
+                                     'Command finished with error.')
+        stdout = stdout.getvalue()
+        stderr = stderr.getvalue()
         return (stdout, stderr)
 
     def test_help(self):
@@ -94,8 +88,12 @@ class TestCaseShell(testtools.TestCase):
         self.assertIn(usage, stdout)
 
     def test_version(self):
-        _, stderr = self.shell('--version')
-        self.assertIn(version.version_string, stderr)
+        stdout, stderr = self.shell('--version')
+        if six.PY3:
+            output = stdout
+        else:
+            output = stderr
+        self.assertIn(version.version_string, output)
 
     @mock.patch.object(test_runner, 'LOG')
     def test_increase_verbosity(self, mock_log):
@@ -116,38 +114,54 @@ class TestCaseShell(testtools.TestCase):
         _, stderr = self.shell('io.murano.test.MyTest1 -v')
         # NOTE(efedorova): May be, there is a problem with test-runner, since
         # all logs are passed to stderr
-        self.assertIn('io.murano.test.MyTest1.testSimple1.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest1.testSimple2.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple1.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple2.....OK', stderr)
+        self.assertIn('Test io.murano.test.MyTest1.testSimple1 successful',
+                      stderr)
+        self.assertIn('Test io.murano.test.MyTest1.testSimple2 successful',
+                      stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple1 successful',
+                      stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple2 successful',
+                      stderr)
         self.assertNotIn('thisIsNotAtestMethod', stderr)
 
     def test_package_by_class(self):
         _, stderr = self.shell(
             'io.murano.test.MyTest1 io.murano.test.MyTest2 -v')
 
-        self.assertNotIn('io.murano.test.MyTest1.testSimple1.....OK', stderr)
-        self.assertNotIn('io.murano.test.MyTest1.testSimple2.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple1.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple2.....OK', stderr)
+        self.assertNotIn('Test io.murano.test.MyTest1.testSimple1 successful',
+                         stderr)
+        self.assertNotIn('Test io.murano.test.MyTest1.testSimple2 successful',
+                         stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple1 successful',
+                      stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple2 successful',
+                      stderr)
 
     def test_package_by_test_name(self):
         _, stderr = self.shell(
             'io.murano.test.MyTest1 testSimple1 -v')
 
-        self.assertIn('io.murano.test.MyTest1.testSimple1.....OK', stderr)
-        self.assertNotIn('io.murano.test.MyTest1.testSimple2.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple1.....OK', stderr)
-        self.assertNotIn('io.murano.test.MyTest2.testSimple2.....OK', stderr)
+        self.assertIn('Test io.murano.test.MyTest1.testSimple1 successful',
+                      stderr)
+        self.assertNotIn('Test io.murano.test.MyTest1.testSimple2 successful',
+                         stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple1 successful',
+                      stderr)
+        self.assertNotIn('Test io.murano.test.MyTest2.testSimple2 successful',
+                         stderr)
 
     def test_package_by_test_and_class_name(self):
         _, stderr = self.shell(
             'io.murano.test.MyTest1 io.murano.test.MyTest2.testSimple1 -v')
 
-        self.assertNotIn('io.murano.test.MyTest1.testSimple1.....OK', stderr)
-        self.assertNotIn('io.murano.test.MyTest1.testSimple2.....OK', stderr)
-        self.assertIn('io.murano.test.MyTest2.testSimple1.....OK', stderr)
-        self.assertNotIn('io.murano.test.MyTest2.testSimple2.....OK', stderr)
+        self.assertNotIn('Test io.murano.test.MyTest1.testSimple1 successful',
+                         stderr)
+        self.assertNotIn('Test io.murano.test.MyTest1.testSimple2 successful',
+                         stderr)
+        self.assertIn('Test io.murano.test.MyTest2.testSimple1 successful',
+                      stderr)
+        self.assertNotIn('Test io.murano.test.MyTest2.testSimple2 successful',
+                         stderr)
 
     def test_service_methods(self):
         _, stderr = self.shell(
@@ -157,7 +171,11 @@ class TestCaseShell(testtools.TestCase):
 
     def test_package_is_not_provided(self):
         _, stderr = self.shell(exitcode=2)
-        self.assertIn('murano-test-runner: error: too few arguments', stderr)
+        if six.PY3:
+            err = 'the following arguments are required: '
+        else:
+            err = 'too few arguments'
+        self.assertIn('murano-test-runner: error: %s' % err, stderr)
 
     def test_wrong_parent(self):
         _, stderr = self.shell(

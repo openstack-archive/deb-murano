@@ -159,6 +159,14 @@ function configure_murano {
 
     iniset $MURANO_CONF_FILE DEFAULT debug $MURANO_DEBUG
     iniset $MURANO_CONF_FILE DEFAULT use_syslog $SYSLOG
+    # Format logging
+    if [ "$LOG_COLOR" == "True" ] && [ "$SYSLOG" == "False" ]; then
+        setup_colorized_logging $MURANO_CONF_FILE DEFAULT
+    else
+        # Show user_name and project_name instead of user_id and project_id
+        iniset $MURANO_CONF_FILE DEFAULT logging_context_format_string "%(asctime)s.%(msecs)03d %(levelname)s %(name)s [%(request_id)s %(user_name)s %(project_name)s] %(instance)s%(message)s"
+    fi
+
     iniset $MURANO_CONF_FILE DEFAULT home_region $REGION_NAME
 
     # Murano Policy Enforcement Configuration
@@ -202,6 +210,15 @@ function configure_murano {
     fi
 }
 
+# set the murano packages service backend
+function set_packages_service_backend() {
+    if is_murano_backend_glare; then
+        MURANO_PACKAGES_SERVICE='glare'
+    else
+        MURANO_PACKAGES_SERVICE='murano'
+    fi
+}
+
 # install_murano_apps() - Install Murano apps from repository murano-apps, if required
 function install_murano_apps() {
     if [[ -z $MURANO_APPS ]]; then
@@ -210,6 +227,8 @@ function install_murano_apps() {
 
     # clone murano-apps only if app installation is required
     git_clone $MURANO_APPS_REPO $MURANO_APPS_DIR $MURANO_APPS_BRANCH
+
+    set_packages_service_backend
 
     # install Murano apps defined in the comma-separated list $MURANO_APPS
     for murano_app in ${MURANO_APPS//,/ }; do
@@ -223,6 +242,7 @@ function install_murano_apps() {
                        --os-tenant-name $OS_PROJECT_NAME \
                        --os-auth-url http://$KEYSTONE_AUTH_HOST:5000 \
                        --murano-url http://127.0.0.1:8082 \
+                       --murano-packages-service $MURANO_PACKAGES_SERVICE \
                        package-import \
                        --is-public \
                        --exists-action u \
@@ -243,6 +263,13 @@ function configure_service_broker {
     iniset $MURANO_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000"
 }
 
+function prepare_core_library() {
+    cd $MURANO_DIR/meta/io.murano && zip -r io.murano.zip .
+}
+
+function remove_core_library_zip() {
+    rm -f $MURANO_DIR/meta/io.murano/io.murano.zip
+}
 
 # init_murano() - Initialize databases, etc.
 function init_murano() {
@@ -252,10 +279,25 @@ function init_murano() {
     recreate_database murano utf8
 
     $MURANO_BIN_DIR/murano-db-manage --config-file $MURANO_CONF_FILE upgrade
-    $MURANO_BIN_DIR/murano-manage --config-file $MURANO_CONF_FILE import-package $MURANO_DIR/meta/io.murano
 }
 
+function setup_core_library() {
+    prepare_core_library
 
+    set_packages_service_backend
+
+    murano --os-username admin \
+           --os-password $ADMIN_PASSWORD \
+           --os-tenant-name admin \
+           --os-auth-url http://$KEYSTONE_AUTH_HOST:5000 \
+           --os-region-name $REGION_NAME \
+           --murano-url http://127.0.0.1:8082 \
+           --murano-packages-service $MURANO_PACKAGES_SERVICE \
+           package-import $MURANO_DIR/meta/io.murano/io.murano.zip \
+           --is-public
+    remove_core_library_zip
+
+}
 # install_murano() - Collect source and prepare
 function install_murano() {
     install_murano_pythonclient
@@ -332,6 +374,15 @@ function configure_murano_tempest_plugin() {
             iniset $TEMPEST_CONFIG service_available murano_cfapi "True"
             iniset $TEMPEST_CONFIG service_broker run_service_broker_tests "True"
         fi
+        if is_service_enabled g-glare; then
+            # TODO(freerunner): This is bad way to configure tempest to
+            # TODO see glare as enabled. We need to move it out to tempest
+            # TODO of glance repo when glare become official OS API.
+            iniset $TEMPEST_CONFIG service_available glare "True"
+        fi
+        if is_murano_backend_glare; then
+            iniset $TEMPEST_CONFIG application_catalog glare_backend "True"
+        fi
     fi
 }
 
@@ -369,26 +420,11 @@ MURANO_DASHBOARD_CACHE_DIR=${MURANO_DASHBOARD_CACHE_DIR:-/tmp/murano}
 
 MURANO_REPOSITORY_URL=${MURANO_REPOSITORY_URL:-'http://apps.openstack.org/api/v1/murano_repo/liberty/'}
 
-# Functions
-# ---------
-
-function remove_config_block() {
-    local config_file="$1"
-    local label="$2"
-
-    if [[ -f "$config_file" ]] && [[ -n "$label" ]]; then
-        sed -e "/^#${label}_BEGIN/,/^#${label}_END/ d" -i "$config_file"
-    fi
-}
-
-
 # Entry points
 # ------------
 
 # configure_murano_dashboard() - Set config files, create data dirs, etc
 function configure_murano_dashboard() {
-    remove_config_block "$HORIZON_CONFIG" "MURANO_CONFIG_SECTION"
-
     configure_local_settings_py
 
     restart_apache_server
@@ -408,34 +444,22 @@ function configure_local_settings_py() {
         local murano_use_glare=False
     fi
 
-    # Write changes for dashboard config to a separate file
-    cat << EOF >> "$horizon_config_part"
-
-#MURANO_CONFIG_SECTION_BEGIN
-#-------------------------------------------------------------------------------
-METADATA_CACHE_DIR = '$MURANO_DASHBOARD_CACHE_DIR'
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join('$MURANO_DASHBOARD_DIR', 'openstack-dashboard.sqlite')
-    }
-}
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-MURANO_REPO_URL = '$MURANO_REPOSITORY_URL'
-MURANO_USE_GLARE = $murano_use_glare
-#-------------------------------------------------------------------------------
-#MURANO_CONFIG_SECTION_END
-
-EOF
-
-    cat "$horizon_config_part" >> "$HORIZON_LOCAL_CONFIG"
-
     if [[ -f "$HORIZON_LOCAL_CONFIG" ]]; then
         sed -e "s/\(^\s*OPENSTACK_HOST\s*=\).*$/\1 '$HOST_IP'/" -i "$HORIZON_LOCAL_CONFIG"
     fi
 
     # Install Murano as plugin for Horizon
-    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/enabled/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
+
+    # Install setting to Horizon
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/local_settings.d/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/local_settings.d/
+
+    # Change Murano dashboard settings
+    sed -e "s/\(^\s*MURANO_USE_GLARE\s*=\).*$/\1 $murano_use_glare/" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+    sed -e "s%\(^\s*MURANO_REPO_URL\s*=\).*$%\1 '$MURANO_REPOSITORY_URL'%" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+    sed -e "s%\(^\s*'NAME':\).*$%\1 os.path.join('$MURANO_DASHBOARD_DIR', 'openstack-dashboard.sqlite')%" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+    echo -e $"\nMETADATA_CACHE_DIR = '$MURANO_DASHBOARD_CACHE_DIR'" | sudo tee -a $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+
 }
 
 # init_murano_dashboard() - Initialize databases, etc.
@@ -448,6 +472,10 @@ function init_murano_dashboard() {
     python "$horizon_manage_py" collectstatic --noinput
     python "$horizon_manage_py" compress --force
     python "$horizon_manage_py" migrate --noinput
+
+    # Compile message for murano-dashboard
+    cd $MURANO_DASHBOARD_DIR/muranodashboard
+    python "$horizon_manage_py" compilemessages
 
     restart_apache_server
 }
@@ -467,8 +495,10 @@ function install_murano_dashboard() {
 # runs that a clean run would need to clean up
 function cleanup_murano_dashboard() {
     echo_summary "Cleanup Murano Dashboard"
-    remove_config_block "$HORIZON_CONFIG" "MURANO_CONFIG_SECTION"
+
     rm $HORIZON_DIR/openstack_dashboard/local/enabled/_50_murano.py
+
+    rm $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
 }
 
 # Main dispatcher
@@ -503,7 +533,7 @@ if is_service_enabled murano; then
         if is_service_enabled murano-cfapi; then
             start_service_broker
         fi
-
+        setup_core_library
         configure_murano_tempest_plugin
 
         # Give Murano some time to Start

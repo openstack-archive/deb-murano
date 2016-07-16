@@ -10,17 +10,14 @@
 #  License for the specific language governing permissions and limitations
 #  under the License.
 
-Format: 1.0
-Type: Application
-FullName: io.murano.apps.magnum.plugin.MagnumBayApp
-Name: Magnum App
-Description: |
- App to deploy Kubernetes cluster using Magnum
-Author: 'Intel, Inc'
-Tags: [Magnum, Kubernetes, Docker]
-Classes:
- io.murano.apps.magnum.plugin.MagnumBaymodel: MagnumBaymodel.yaml
- io.murano.apps.magnum.plugin.MagnumBayApp: MagnumBayApp.yaml
+Namespaces:
+  =: io.murano.system
+  std: io.murano
 
-Require:
-  murano.plugins.magnum:
+Name: DummySecurityGroupManager
+Extends: SecurityGroupManager
+
+# This class actually adds nothing to the base SecurityGroupManager,
+# so a base class could be used instead. However, it's better to explicitly
+# declare this class and use it, since the base one is supposed to remain
+# "abstract" and never be instantiated.
