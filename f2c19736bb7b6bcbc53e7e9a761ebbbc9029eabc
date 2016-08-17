@@ -1,0 +1,9 @@
+Verified+1: Murano CI
+Code-Review+2: Serg Melikyan <smelikyan@mirantis.com>
+Workflow+1: Serg Melikyan <smelikyan@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 29 Jul 2016 14:53:39 +0000
+Reviewed-on: https://review.openstack.org/348638
+Project: openstack/deb-murano
+Branch: refs/heads/master

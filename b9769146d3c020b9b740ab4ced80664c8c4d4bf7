@@ -1,0 +1,14 @@
+Verified+1: Murano CI
+Code-Review+1: Valerii Kovalchuk <vakovalchuk@mirantis.com>
+Code-Review+1: Olga Gusarenko <ogusarenko@mirantis.com>
+Code-Review+1: Maria Zlatkova <mzlatkova@mirantis.com>
+Code-Review+2: Nikolay Starodubtsev <starodubcevna@gmail.com>
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Code-Review+2: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Workflow+1: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 25 Jul 2016 15:22:21 +0000
+Reviewed-on: https://review.openstack.org/324453
+Project: openstack/deb-murano
+Branch: refs/heads/master
