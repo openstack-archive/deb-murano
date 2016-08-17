@@ -1,0 +1,9 @@
+Code-Review+2: Serg Melikyan <smelikyan@mirantis.com>
+Code-Review+2: Ekaterina Chernova <efedorova@mirantis.com>
+Workflow+1: Ekaterina Chernova <efedorova@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 28 Apr 2015 09:36:11 +0000
+Reviewed-on: https://review.openstack.org/177743
+Project: openstack/deb-murano
+Branch: refs/heads/stable/kilo

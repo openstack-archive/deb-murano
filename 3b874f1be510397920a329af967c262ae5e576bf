@@ -1,0 +1,12 @@
+Verified+1: Murano CI
+Code-Review+2: Serg Melikyan <smelikyan@mirantis.com>
+Code-Review+1: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+1: Kirill Zaitsev <kzaitsev@mirantis.com>
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Workflow+1: Stan Lagun <slagun@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 29 Apr 2015 21:02:11 +0000
+Reviewed-on: https://review.openstack.org/178721
+Project: openstack/deb-murano
+Branch: refs/heads/stable/kilo

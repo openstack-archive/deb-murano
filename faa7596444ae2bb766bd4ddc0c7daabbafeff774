@@ -1,0 +1,12 @@
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Code-Review+1: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+1: Timur Nurlygayanov <tnurlygayanov@mirantis.com>
+Code-Review+2: Ekaterina Chernova <efedorova@mirantis.com>
+Workflow+1: Ekaterina Chernova <efedorova@mirantis.com>
+Code-Review+1: Filip Blaha <filip.blaha@hpe.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 28 Apr 2015 18:18:51 +0000
+Reviewed-on: https://review.openstack.org/178290
+Project: openstack/deb-murano
+Branch: refs/heads/stable/kilo

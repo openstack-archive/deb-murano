@@ -1,0 +1,14 @@
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Code-Review+1: Alexander Tivelkov <ativelkov@mirantis.com>
+Code-Review+1: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+1: Lin Yang <lin.a.yang@intel.com>
+Code-Review+2: Ekaterina Chernova <efedorova@mirantis.com>
+Code-Review+1: Clint Adams <clint@gcfm.net>
+Verified+1: Murano CI
+Workflow+1: Ekaterina Chernova <efedorova@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 30 Oct 2015 13:53:38 +0000
+Reviewed-on: https://review.openstack.org/237230
+Project: openstack/deb-murano
+Branch: refs/heads/stable/liberty

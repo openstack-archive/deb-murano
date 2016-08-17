@@ -1,0 +1,9 @@
+Verified+1: Murano CI
+Code-Review+2: Ruslan Kamaldinov <rkamaldinov@mirantis.com>
+Workflow+1: Ruslan Kamaldinov <rkamaldinov@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 16 Oct 2014 15:31:00 +0000
+Reviewed-on: https://review.openstack.org/128917
+Project: openstack/deb-murano
+Branch: refs/heads/proposed/juno

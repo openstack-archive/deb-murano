@@ -1,0 +1,11 @@
+Verified+1: Murano CI
+Code-Review+2: Serg Melikyan <smelikyan@mirantis.com>
+Code-Review+2: Ekaterina Chernova <efedorova@mirantis.com>
+Workflow+1: Ekaterina Chernova <efedorova@mirantis.com>
+Code-Review+1: Alexander Tivelkov <ativelkov@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 05 Oct 2015 10:32:56 +0000
+Reviewed-on: https://review.openstack.org/230908
+Project: openstack/deb-murano
+Branch: refs/heads/stable/liberty
