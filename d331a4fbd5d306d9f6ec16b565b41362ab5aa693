@@ -1,0 +1,12 @@
+Code-Review+1: Tetiana Lashchova <tlashchova@mirantis.com>
+Verified+1: Murano CI
+Code-Review+2: zhurong <zhu.rong@99cloud.net>
+Code-Review+1: venkatamahesh <Venkata.Kotha@infinite.com>
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Workflow+1: Kirill Zaitsev <kzaitsev@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 28 Aug 2016 23:38:45 +0000
+Reviewed-on: https://review.openstack.org/361365
+Project: openstack/deb-murano
+Branch: refs/heads/master
