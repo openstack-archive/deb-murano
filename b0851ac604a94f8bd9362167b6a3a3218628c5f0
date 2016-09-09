@@ -1,0 +1,9 @@
+Verified+1: Murano CI
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Workflow+1: Kirill Zaitsev <kzaitsev@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 06 Sep 2016 10:33:57 +0000
+Reviewed-on: https://review.openstack.org/366001
+Project: openstack/deb-murano
+Branch: refs/heads/stable/liberty
