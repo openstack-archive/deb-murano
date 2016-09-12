@@ -1,0 +1,15 @@
+Code-Review+1: Dmytro Dovbii <ddovbii@mirantis.com>
+Code-Review+1: zhurong <zhu.rong@99cloud.net>
+Code-Review+1: Alexander Tivelkov <ativelkov@mirantis.com>
+Code-Review+1: Valerii Kovalchuk <vakovalchuk@mirantis.com>
+Verified+1: Murano CI
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Code-Review+1: Vladislav Belogrudov <vladislav.belogrudov@oracle.com>
+Workflow+1: Kirill Zaitsev <kzaitsev@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 12 Sep 2016 13:49:10 +0000
+Reviewed-on: https://review.openstack.org/320401
+Project: openstack/deb-murano
+Branch: refs/heads/stable/mitaka
