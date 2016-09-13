@@ -1,0 +1,12 @@
+Verified+1: Murano CI
+Code-Review+1: Oleh Baran <obaran@mirantis.com>
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Code-Review+1: Aleksandr Kholkin <akholkin@mirantis.com>
+Code-Review+2: Nikolay Starodubtsev <starodubcevna@gmail.com>
+Workflow+1: Nikolay Starodubtsev <starodubcevna@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 13 Sep 2016 17:26:02 +0000
+Reviewed-on: https://review.openstack.org/369317
+Project: openstack/deb-murano
+Branch: refs/heads/master
