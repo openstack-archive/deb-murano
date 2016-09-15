@@ -1,0 +1,11 @@
+Verified+1: Murano CI
+Code-Review+1: Valerii Kovalchuk <vakovalchuk@mirantis.com>
+Code-Review+2: Alexander Tivelkov <ativelkov@mirantis.com>
+Code-Review+2: Nikolay Starodubtsev <starodubcevna@gmail.com>
+Workflow+1: Nikolay Starodubtsev <starodubcevna@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 14 Sep 2016 16:57:51 +0000
+Reviewed-on: https://review.openstack.org/366560
+Project: openstack/deb-murano
+Branch: refs/heads/master
