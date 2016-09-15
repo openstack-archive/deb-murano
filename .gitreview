@@ -1,4 +1,5 @@
 [gerrit]
 host=review.openstack.org
 port=29418
-project=openstack/murano.git
+project=openstack/deb-murano.git
+defaultbranch=debian/newton
