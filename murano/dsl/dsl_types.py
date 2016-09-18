@@ -12,6 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import weakref
+
 
 class ClassUsages(object):
     Class = 'Class'
@@ -71,6 +73,13 @@ class MethodArgumentUsages(object):
     All = {Standard, VarArgs, KwArgs}
 
 
+class DumpTypes(object):
+    Serializable = 'Serializable'
+    Inline = 'Inline'
+    Mixed = 'Mixed'
+    All = {Serializable, Inline, Mixed}
+
+
 class MuranoType(object):
     pass
 
@@ -105,11 +114,11 @@ class MuranoProperty(object):
 
 class MuranoTypeReference(object):
     def __init__(self, murano_type):
-        self.__murano_type = murano_type
+        self.__murano_type = weakref.ref(murano_type)
 
     @property
     def type(self):
-        return self.__murano_type
+        return self.__murano_type()
 
     def __repr__(self):
         return '*' + repr(self.type)
@@ -118,6 +127,9 @@ class MuranoTypeReference(object):
         if not isinstance(other, MuranoTypeReference):
             return False
         return self.type == other.type
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __hash__(self):
         return hash(self.type)

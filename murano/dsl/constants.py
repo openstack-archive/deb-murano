@@ -14,22 +14,19 @@
 
 import semantic_version
 
+
 EXPRESSION_MEMORY_QUOTA = 512 * 1024
 ITERATORS_LIMIT = 2000
 
 CTX_ACTIONS_ONLY = '?actionsOnly'
 CTX_ALLOW_PROPERTY_WRITES = '$?allowPropertyWrites'
 CTX_ARGUMENT_OWNER = '$?argumentOwner'
-CTX_ATTRIBUTE_STORE = '$?attributeStore'
 CTX_CALLER_CONTEXT = '$?callerContext'
 CTX_CURRENT_INSTRUCTION = '$?currentInstruction'
 CTX_CURRENT_EXCEPTION = '$?currentException'
 CTX_CURRENT_METHOD = '$?currentMethod'
-CTX_EXECUTOR = '$?executor'
-CTX_EXECUTION_SESSION = '$?executionSession'
 CTX_NAMES_SCOPE = '$?namesScope'
 CTX_ORIGINAL_CONTEXT = '$?originalContext'
-CTX_PACKAGE_LOADER = '$?packageLoader'
 CTX_SKIP_FRAME = '$?skipFrame'
 CTX_THIS = '$?this'
 CTX_TYPE = '$?type'
@@ -51,7 +48,11 @@ CORE_LIBRARY_OBJECT = 'io.murano.Object'
 
 TL_CONTEXT = '__murano_context'
 TL_ID = '__thread_id'
+TL_OBJECT_STORE = '__murano_object_store'
 TL_SESSION = '__murano_execution_session'
+TL_CONTRACT_PASSKEY = '__murano_contract_passkey'
+TL_OBJECTS_DRY_RUN = '__murano_objects_dry_run'
+
 
 RUNTIME_VERSION_1_0 = semantic_version.Version('1.0.0')
 RUNTIME_VERSION_1_1 = semantic_version.Version('1.1.0')

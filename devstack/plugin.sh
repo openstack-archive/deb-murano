@@ -78,9 +78,13 @@ function configure_murano_rpc_backend() {
 function configure_murano_glare_backend() {
     # Configure Murano to use GlARe application storage backend
     iniset $MURANO_CONF_FILE engine packages_service 'glare'
+    if is_service_enabled murano-cfapi; then
+        iniset $MURANO_CFAPI_CONF_FILE cfapi packages_service 'glare'
+    fi
     iniset $MURANO_CONF_FILE glare url $GLANCE_SERVICE_PROTOCOL://$GLANCE_GLARE_HOSTPORT
     iniset $MURANO_CONF_FILE glare endpoint_type $GLARE_ENDPOINT_TYPE
     echo -e $"\nexport MURANO_PACKAGES_SERVICE='glare'" | sudo tee -a $TOP_DIR/openrc
+    echo -e $"\nexport GLARE_URL='$GLANCE_SERVICE_PROTOCOL://$GLANCE_GLARE_HOSTPORT'" | sudo tee -a $TOP_DIR/openrc
 }
 
 function restart_glare_service() {
@@ -113,13 +117,15 @@ function configure_murano_networking {
     # If it was set but the network is not exist then
     # first available external network will be selected.
     local ext_net=${MURANO_EXTERNAL_NETWORK:-'public'}
-    local ext_net_id=$(neutron net-external-list \
-            | grep " $ext_net " | get_field 2)
+    local ext_net_id=$(openstack --os-cloud=devstack-admin \
+    --os-region-name="$REGION_NAME" network list \
+    --external | grep " $ext_net " | get_field 1)
 
-    # Try to select first available external network
-    if [[ -n "$ext_net_id" ]]; then
-        ext_net_id=$(neutron net-external-list -f csv -c id \
-            | tail -n +2 | tail -n 1)
+    # Try to select first available external network if ext_net_id is null
+    if [[ ! -n "$ext_net_id" ]]; then
+        ext_net_id=$(openstack --os-cloud=devstack-admin \
+        --os-region-name="$REGION_NAME" network list \
+        --external -f csv -c ID | tail -n +2 | tail -n 1)
     fi
 
     # Configure networking options for Murano
@@ -201,9 +207,14 @@ function configure_murano {
     # Configure Murano API URL
     iniset $MURANO_CONF_FILE murano url "http://127.0.0.1:8082"
 
+    # Configure the number of api workers
+    if [[ -n "$MURANO_API_WORKERS" ]]; then
+        iniset $MURANO_CONF_FILE murano api_workers $MURANO_API_WORKERS
+    fi
+
     # Configure the number of engine workers
     if [[ -n "$MURANO_ENGINE_WORKERS" ]]; then
-        iniset $MURANO_CONF_FILE engine workers $MURANO_ENGINE_WORKERS
+        iniset $MURANO_CONF_FILE engine engine_workers $MURANO_ENGINE_WORKERS
     fi
     if is_murano_backend_glare; then
         configure_murano_glare_backend
@@ -217,6 +228,20 @@ function set_packages_service_backend() {
     else
         MURANO_PACKAGES_SERVICE='murano'
     fi
+}
+
+# configure_murano_cfapi() - Set config files
+function configure_murano_cfapi {
+
+    # Generate Murano configuration file and configure common parameters.
+    oslo-config-generator --namespace keystonemiddleware.auth_token \
+                          --namespace murano.cfapi \
+                          --namespace oslo.db \
+                          > $MURANO_CFAPI_CONF_FILE
+    cp $MURANO_DIR/etc/murano/murano-cfapi-paste.ini $MURANO_CONF_DIR
+
+    configure_service_broker
+
 }
 
 # install_murano_apps() - Install Murano apps from repository murano-apps, if required
@@ -242,6 +267,7 @@ function install_murano_apps() {
                        --os-tenant-name $OS_PROJECT_NAME \
                        --os-auth-url http://$KEYSTONE_AUTH_HOST:5000 \
                        --murano-url http://127.0.0.1:8082 \
+                       --glare-url $GLANCE_SERVICE_PROTOCOL://$GLANCE_GLARE_HOSTPORT \
                        --murano-packages-service $MURANO_PACKAGES_SERVICE \
                        package-import \
                        --is-public \
@@ -256,11 +282,29 @@ function install_murano_apps() {
 
 # configure_service_broker() - set service broker specific options to config
 function configure_service_broker {
-    #Add needed options to murano.conf
-    iniset $MURANO_CONF_FILE cfapi tenant "$MURANO_CFAPI_DEFAULT_TENANT"
-    iniset $MURANO_CONF_FILE cfapi bind_host "$MURANO_SERVICE_HOST"
-    iniset $MURANO_CONF_FILE cfapi bind_port "$MURANO_CFAPI_SERVICE_PORT"
-    iniset $MURANO_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000"
+
+    iniset $MURANO_CFAPI_CONF_FILE DEFAULT debug $MURANO_DEBUG
+    iniset $MURANO_CFAPI_CONF_FILE DEFAULT use_syslog $SYSLOG
+
+    #Add needed options to murano-cfapi.conf
+    iniset $MURANO_CFAPI_CONF_FILE cfapi tenant "$MURANO_CFAPI_DEFAULT_TENANT"
+    iniset $MURANO_CFAPI_CONF_FILE cfapi bind_host "$MURANO_SERVICE_HOST"
+    iniset $MURANO_CFAPI_CONF_FILE cfapi bind_port "$MURANO_CFAPI_SERVICE_PORT"
+    iniset $MURANO_CFAPI_CONF_FILE cfapi auth_url "http://${KEYSTONE_AUTH_HOST}:5000"
+
+    # configure the database.
+    iniset $MURANO_CFAPI_CONF_FILE database connection `database_connection_url murano_cfapi`
+
+    # Setup keystone_authtoken section
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken auth_uri "http://${KEYSTONE_AUTH_HOST}:5000"
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken auth_host $KEYSTONE_AUTH_HOST
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken auth_port $KEYSTONE_AUTH_PORT
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken auth_protocol $KEYSTONE_AUTH_PROTOCOL
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken cafile $KEYSTONE_SSL_CA
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken admin_tenant_name $SERVICE_TENANT_NAME
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken admin_user $MURANO_ADMIN_USER
+    iniset $MURANO_CFAPI_CONF_FILE keystone_authtoken admin_password $SERVICE_PASSWORD
+
 }
 
 function prepare_core_library() {
@@ -281,6 +325,15 @@ function init_murano() {
     $MURANO_BIN_DIR/murano-db-manage --config-file $MURANO_CONF_FILE upgrade
 }
 
+# init_murano_cfapi() - Initialize databases, etc.
+function init_murano_cfapi() {
+
+    # (re)create Murano database
+    recreate_database murano_cfapi utf8
+
+    $MURANO_BIN_DIR/murano-cfapi-db-manage --config-file $MURANO_CFAPI_CONF_FILE upgrade
+}
+
 function setup_core_library() {
     prepare_core_library
 
@@ -292,6 +345,7 @@ function setup_core_library() {
            --os-auth-url http://$KEYSTONE_AUTH_HOST:5000 \
            --os-region-name $REGION_NAME \
            --murano-url http://127.0.0.1:8082 \
+           --glare-url $GLANCE_SERVICE_PROTOCOL://$GLANCE_GLARE_HOSTPORT \
            --murano-packages-service $MURANO_PACKAGES_SERVICE \
            package-import $MURANO_DIR/meta/io.murano/io.murano.zip \
            --is-public
@@ -341,7 +395,7 @@ function stop_murano() {
 
 # start_service_broker() - start murano CF service broker
 function start_service_broker() {
-    screen_it murano-cfapi "cd $MURANO_DIR && $MURANO_BIN_DIR/murano-cfapi --config-file $MURANO_CONF_DIR/murano.conf"
+    screen_it murano-cfapi "cd $MURANO_DIR && $MURANO_BIN_DIR/murano-cfapi --config-file $MURANO_CONF_DIR/murano-cfapi.conf"
 }
 
 
@@ -449,16 +503,20 @@ function configure_local_settings_py() {
     fi
 
     # Install Murano as plugin for Horizon
-    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/enabled/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/enabled/
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/enabled/*.py $HORIZON_DIR/openstack_dashboard/local/enabled/
 
     # Install setting to Horizon
-    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/local_settings.d/_50_murano.py $HORIZON_DIR/openstack_dashboard/local/local_settings.d/
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/local/local_settings.d/*.py $HORIZON_DIR/openstack_dashboard/local/local_settings.d/
+
+    # Install murano RBAC policy to Horizon
+    ln -sf $MURANO_DASHBOARD_DIR/muranodashboard/conf/murano_policy.json $HORIZON_DIR/openstack_dashboard/conf/
 
     # Change Murano dashboard settings
     sed -e "s/\(^\s*MURANO_USE_GLARE\s*=\).*$/\1 $murano_use_glare/" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
     sed -e "s%\(^\s*MURANO_REPO_URL\s*=\).*$%\1 '$MURANO_REPOSITORY_URL'%" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
     sed -e "s%\(^\s*'NAME':\).*$%\1 os.path.join('$MURANO_DASHBOARD_DIR', 'openstack-dashboard.sqlite')%" -i $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
     echo -e $"\nMETADATA_CACHE_DIR = '$MURANO_DASHBOARD_CACHE_DIR'" | sudo tee -a $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+    echo -e $"\nGLARE_API_URL = '$GLANCE_SERVICE_PROTOCOL://$GLANCE_GLARE_HOSTPORT'" | sudo tee -a $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
 
 }
 
@@ -499,6 +557,8 @@ function cleanup_murano_dashboard() {
     rm $HORIZON_DIR/openstack_dashboard/local/enabled/_50_murano.py
 
     rm $HORIZON_DIR/openstack_dashboard/local/local_settings.d/_50_murano.py
+
+    rm $HORIZON_DIR/openstack_dashboard/conf/murano_policy.json
 }
 
 # Main dispatcher
@@ -518,7 +578,7 @@ if is_service_enabled murano; then
             configure_murano_dashboard
         fi
         if is_service_enabled murano-cfapi; then
-            configure_service_broker
+            configure_murano_cfapi
         fi
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         echo_summary "Initializing Murano"
@@ -531,6 +591,7 @@ if is_service_enabled murano; then
             restart_glare_service
         fi
         if is_service_enabled murano-cfapi; then
+            init_murano_cfapi
             start_service_broker
         fi
         setup_core_library

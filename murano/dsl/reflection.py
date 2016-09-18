@@ -110,8 +110,8 @@ def property_owner(murano_property):
 @specs.method
 def property_get_value(context, property_, object_):
     if object_ is None:
-        return property_.declaring_type.get_property(
-            name=property_.name, context=context)
+        return helpers.get_executor().get_static_property(
+            property_.declaring_type, name=property_.name, context=context)
     return object_.cast(property_.declaring_type).get_property(
         name=property_.name, context=context)
 
@@ -123,7 +123,8 @@ def property_get_value(context, property_, object_):
 @specs.method
 def property_set_value(context, property_, object_, value):
     if object_ is None:
-        property_.declaring_type.set_property(
+        helpers.get_executor().set_static_property(
+            property_.declaring_type,
             name=property_.name, value=value, context=context)
     else:
         object_.cast(property_.declaring_type).set_property(
@@ -154,8 +155,7 @@ def method_owner(murano_method):
 @specs.name('invoke')
 @specs.method
 def method_invoke(context, method, __object, *args, **kwargs):
-    executor = helpers.get_executor(context)
-    return method.invoke(executor, __object, args, kwargs, context)
+    return method.invoke(__object, args, kwargs, context)
 
 
 @specs.yaql_property(dsl_types.MuranoPackage)
@@ -194,6 +194,12 @@ def argument_name(method_argument):
 @specs.name('has_default')
 def argument_has_default(method_argument):
     return method_argument.has_default
+
+
+@specs.yaql_property(dsl_types.MuranoMethodArgument)
+@specs.name('usage')
+def argument_usage(method_argument):
+    return method_argument.usage
 
 
 @specs.yaql_property(dsl_types.MuranoMethodArgument)
@@ -238,6 +244,7 @@ def register(context):
         method_name, arguments, method_owner, method_invoke,
         types, package_name, package_version,
         argument_name, argument_has_default, argument_owner,
+        argument_usage,
         cardinality, targets, inherited,
         get_meta
     )

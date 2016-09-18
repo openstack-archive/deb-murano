@@ -12,10 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import collections
 import contextlib
 import itertools
-import weakref
+import traceback
 
 import eventlet
 import eventlet.event
@@ -25,15 +24,17 @@ from yaql.language import exceptions as yaql_exceptions
 from yaql.language import specs
 from yaql.language import utils
 
-from murano.common.i18n import _LW
+from murano.common.i18n import _LW, _LE
 from murano.dsl import attribute_store
 from murano.dsl import constants
 from murano.dsl import dsl
+from murano.dsl import dsl_exception
 from murano.dsl import dsl_types
 from murano.dsl import exceptions as dsl_exceptions
 from murano.dsl import helpers
 from murano.dsl import object_store
 from murano.dsl.principal_objects import stack_trace
+from murano.dsl import serializer
 from murano.dsl import yaql_integration
 
 LOG = logging.getLogger(__name__)
@@ -48,10 +49,15 @@ class MuranoDslExecutor(object):
         self._object_store = object_store.ObjectStore(self)
         self._locks = {}
         self._root_context_cache = {}
+        self._static_properties = {}
 
     @property
     def object_store(self):
         return self._object_store
+
+    @property
+    def execution_session(self):
+        return self._session
 
     @property
     def attribute_store(self):
@@ -66,20 +72,15 @@ class MuranoDslExecutor(object):
         return self._context_manager
 
     def invoke_method(self, method, this, context, args, kwargs,
-                      skip_stub=False):
-        with helpers.execution_session(self._session):
-            return self._invoke_method(
-                method, this, context, args, kwargs, skip_stub=skip_stub)
-
-    def _invoke_method(self, method, this, context, args, kwargs,
-                       skip_stub=False):
+                      skip_stub=False, invoke_action=True):
         if isinstance(this, dsl.MuranoObjectInterface):
             this = this.object
         kwargs = utils.filter_parameters_dict(kwargs)
         runtime_version = method.declaring_type.package.runtime_version
         yaql_engine = yaql_integration.choose_yaql_engine(runtime_version)
         if context is None or not skip_stub:
-            actions_only = context is None and not method.name.startswith('.')
+            actions_only = (context is None and not method.name.startswith('.')
+                            and invoke_action)
             method_context = self.create_method_context(
                 self.create_object_context(this, context), method)
             method_context[constants.CTX_SKIP_FRAME] = True
@@ -109,13 +110,33 @@ class MuranoDslExecutor(object):
         context = self.create_method_context(obj_context, method)
 
         if isinstance(this, dsl_types.MuranoObject):
+            if this.destroyed:
+                raise dsl_exceptions.ObjectDestroyedError(this)
             this = this.real_this
 
         if method.arguments_scheme is not None:
             args, kwargs = self._canonize_parameters(
                 method.arguments_scheme, args, kwargs, method.name, this)
 
-        with self._acquire_method_lock(method, this):
+        this_lock = this
+        arg_values_for_lock = {}
+        method_meta = [m for m in method.get_meta(context)
+                       if m.type.name == ('io.murano.metadata.'
+                                          'engine.Synchronize')]
+        if method_meta:
+            method_meta = method_meta[0]
+
+        if method_meta:
+            if not method_meta.get_property('onThis', context):
+                this_lock = None
+            for arg_name in method_meta.get_property('onArgs', context):
+                arg_val = kwargs.get(arg_name)
+                if arg_val is not None:
+                    arg_values_for_lock[arg_name] = arg_val
+
+        arg_values_for_lock = utils.filter_parameters_dict(arg_values_for_lock)
+
+        with self._acquire_method_lock(method, this_lock, arg_values_for_lock):
             for i, arg in enumerate(args, 2):
                 context[str(i)] = arg
             for key, value in six.iteritems(kwargs):
@@ -127,7 +148,7 @@ class MuranoDslExecutor(object):
                         native_this = this.get_reference()
                     else:
                         native_this = dsl.MuranoObjectInterface(this.cast(
-                            method.declaring_type), self)
+                            method.declaring_type))
                     return method.body(
                         yaql_engine, context, native_this)(*args, **kwargs)
                 else:
@@ -146,31 +167,70 @@ class MuranoDslExecutor(object):
                 return call()
 
     @contextlib.contextmanager
-    def _acquire_method_lock(self, method, this):
-        method_id = id(method)
-        if method.is_static:
-            this_id = id(method.declaring_type)
+    def _acquire_method_lock(self, method, this, arg_val_dict):
+        if this is None:
+            if not arg_val_dict:
+                # if neither "this" nor argument values are set then no
+                # locking is needed
+                key = None
+            else:
+                # if only the argument values are passed then find the lock
+                # list only by the method
+                key = (None, id(method))
         else:
-            this_id = this.object_id
+            if method.is_static:
+                # find the lock list by the type and method
+                key = (id(method.declaring_type), id(method))
+            else:
+                # find the lock list by the object and method
+                key = (this.object_id, id(method))
         thread_id = helpers.get_current_thread_id()
         while True:
-            event, event_owner = self._locks.get(
-                (method_id, this_id), (None, None))
+            event, event_owner = None, None
+            if key is None:  # no locking needed
+                break
+
+            lock_list = self._locks.setdefault(key, [])
+            # lock list contains a list of tuples:
+            # first item of each tuple is a dict with the values of locking
+            # arguments (it is used for argument values comparison),
+            # second item is an event to wait on,
+            # third one is the owner thread id
+
+            # If this lock list is empty it means no locks on this object and
+            # method at all.
+            for arg_vals, l_event, l_event_owner in lock_list:
+                if arg_vals == arg_val_dict:
+                    event = l_event
+                    event_owner = l_event_owner
+                    break
+
             if event:
                 if event_owner == thread_id:
+                    # this means a re-entrant lock: the tuple with the same
+                    # value of the first element exists in the list, but it was
+                    # acquired by the same green thread. We may proceed with
+                    # the call in this case
                     event = None
                     break
                 else:
                     event.wait()
             else:
+                # this means either the lock list was empty or didn't contain a
+                # tuple with the first element equal to arg_val_dict.
+                # Then let's acquire a lock, i.e. create a new tuple and place
+                # it into the list
                 event = eventlet.event.Event()
-                self._locks[(method_id, this_id)] = (event, thread_id)
+                event_owner = thread_id
+                lock_list.append((arg_val_dict, event, event_owner))
                 break
         try:
             yield
         finally:
             if event is not None:
-                del self._locks[(method_id, this_id)]
+                lock_list.remove((arg_val_dict, event, event_owner))
+                if len(lock_list) == 0:
+                    del self._locks[key]
                 event.send()
 
     @contextlib.contextmanager
@@ -246,92 +306,80 @@ class MuranoDslExecutor(object):
         return tuple(), parameter_values
 
     def load(self, data):
-        with helpers.execution_session(self._session):
+        with helpers.with_object_store(self.object_store):
             return self._load(data)
 
     def _load(self, data):
         if not isinstance(data, dict):
             raise TypeError()
         self._attribute_store.load(data.get(constants.DM_ATTRIBUTES) or [])
-        result = self._object_store.load(data.get(constants.DM_OBJECTS), None)
-        if result is None:
-            return None
-        return dsl.MuranoObjectInterface(result, executor=self)
+        model = data.get(constants.DM_OBJECTS)
+        if model is None:
+            result = None
+        else:
+            result = self._object_store.load(model, None, keep_ids=True)
+        model_copy = data.get(constants.DM_OBJECTS_COPY)
+        if model_copy:
+            self._object_store.load(model_copy, None, keep_ids=True)
+        return dsl.MuranoObjectInterface.create(result)
 
-    def cleanup(self, data):
-        with helpers.execution_session(self._session):
-            return self._cleanup(data)
-
-    def _cleanup(self, data):
-        objects_copy = data.get(constants.DM_OBJECTS_COPY)
-        if not objects_copy:
+    def signal_destruction_dependencies(self, *objects):
+        if not objects:
             return
-        gc_object_store = object_store.ObjectStore(self)
-        gc_object_store.load(objects_copy, None)
-        objects_to_clean = []
-        for object_id in self._list_potential_object_ids(objects_copy):
-            if (gc_object_store.has(object_id) and
-                    not self._object_store.has(object_id)):
-                obj = gc_object_store.get(object_id)
-                objects_to_clean.append(obj)
-        if objects_to_clean:
-            for obj in objects_to_clean:
-                self._destroy_object(obj)
+        elif len(objects) > 1:
+            return helpers.parallel_select(
+                objects, self.signal_destruction_dependencies)
 
-    def cleanup_orphans(self, alive_object_ids):
-        with helpers.execution_session(self._session):
-            orphan_ids = self._collect_orphans(alive_object_ids)
-            self._destroy_orphans(orphan_ids)
-            return len(orphan_ids)
+        obj = objects[0]
+        if obj.destroyed:
+            return
+        for dependency in obj.destruction_dependencies:
+            try:
+                handler = dependency['handler']
+                if handler:
+                    subscriber = dependency['subscriber']
+                    if subscriber:
+                        subscriber = subscriber()
+                    if (subscriber and
+                            subscriber.initialized and
+                            not subscriber.destroyed):
+                        method = subscriber.type.find_single_method(handler)
+                        self.invoke_method(
+                            method, subscriber, None, [obj], {},
+                            invoke_action=False)
+            except Exception as e:
+                LOG.warning(_LW(
+                    'Muted exception during destruction dependency '
+                    'execution in {0}: {1}').format(obj, e), exc_info=True)
+        obj.load_dependencies(None)
 
-    def _collect_orphans(self, alive_object_ids):
-        orphan_ids = []
-        for obj_id in self._object_store.iterate():
-            if obj_id not in alive_object_ids:
-                orphan_ids.append(obj_id)
-        return orphan_ids
+    def destroy_objects(self, *objects):
+        if not objects:
+            return
+        elif len(objects) > 1:
+            return helpers.parallel_select(
+                objects, self.destroy_objects)
 
-    def _destroy_orphans(self, orphan_ids):
-        for obj_id in orphan_ids:
-            self._destroy_object(self._object_store.get(obj_id))
-            self._object_store.remove(obj_id)
-
-    def _destroy_object(self, obj):
+        obj = objects[0]
+        if obj.destroyed:
+            return
         methods = obj.type.find_methods(lambda m: m.name == '.destroy')
         for method in methods:
             try:
-                method.invoke(self, obj, (), {}, None)
+                method.invoke(obj, (), {}, None)
             except Exception as e:
+                if isinstance(e, dsl_exception.MuranoPlException):
+                    tb = e.format(prefix='  ')
+                else:
+                    tb = traceback.format_exc()
                 LOG.warning(_LW(
                     'Muted exception during execution of .destroy '
-                    'on {0}: {1}').format(obj, e), exc_info=True)
-
-    def _list_potential_object_ids(self, data):
-        if isinstance(data, dict):
-            for val in six.itervalues(data):
-                for res in self._list_potential_object_ids(val):
-                    yield res
-            sys_dict = data.get('?')
-            if (isinstance(sys_dict, dict) and
-                    sys_dict.get('id') and sys_dict.get('type')):
-                yield sys_dict['id']
-        elif isinstance(data, collections.Iterable) and not isinstance(
-                data, six.string_types):
-            for val in data:
-                for res in self._list_potential_object_ids(val):
-                    yield res
+                    'on {0}: {1}').format(obj, tb), exc_info=True)
 
     def create_root_context(self, runtime_version):
         context = self._root_context_cache.get(runtime_version)
         if not context:
             context = self.context_manager.create_root_context(runtime_version)
-            context = context.create_child_context()
-            context[constants.CTX_EXECUTOR] = weakref.ref(self)
-            context[constants.CTX_PACKAGE_LOADER] = weakref.ref(
-                self._package_loader)
-            context[constants.CTX_EXECUTION_SESSION] = self._session
-            context[constants.CTX_ATTRIBUTE_STORE] = weakref.ref(
-                self._attribute_store)
             self._root_context_cache[runtime_version] = context
         return context
 
@@ -394,3 +442,48 @@ class MuranoDslExecutor(object):
         context = object_context.create_child_context()
         context[constants.CTX_CURRENT_METHOD] = method
         return context
+
+    def run(self, cls, method_name, this, args, kwargs):
+        with helpers.with_object_store(self.object_store):
+            return cls.invoke(method_name, this, args, kwargs)
+
+    def get_static_property(self, murano_type, name, context):
+        prop = murano_type.find_static_property(name)
+        cls = prop.declaring_type
+        value = self._static_properties.get(prop, prop.default)
+        return prop.transform(value, cls, None, context)
+
+    def set_static_property(self, murano_type, name, value,
+                            context, dry_run=False):
+        prop = murano_type.find_static_property(name)
+        cls = prop.declaring_type
+        value = prop.transform(value, cls, None, context)
+        if not dry_run:
+            self._static_properties[prop] = prop.finalize(
+                value, cls, context)
+
+    def finalize(self, model_root=None):
+        # NOTE(ksnihyr): should be no-except
+        try:
+            if model_root:
+                used_objects = serializer.collect_objects(model_root)
+                self.object_store.prepare_finalize(used_objects)
+                model = serializer.serialize_model(model_root, self)
+                self.object_store.finalize()
+            else:
+                model = None
+                self.object_store.prepare_finalize(None)
+                self.object_store.finalize()
+            self._static_properties.clear()
+            return model
+        except Exception as e:
+            LOG.exception(
+                _LE("Exception %s occurred"
+                    " during MuranoDslExecutor finalization"), e)
+            return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finalize()

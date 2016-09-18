@@ -15,14 +15,11 @@
 import mock
 
 from oslo_concurrency import processutils
-from oslo_config import cfg
 from oslo_log import log as logging
 
 from murano.cmd import engine
 from murano.common import config
 from murano.tests.unit import base
-
-CONF = cfg.CONF
 
 
 class TestEngineWorkers(base.MuranoTestCase):
@@ -42,7 +39,7 @@ class TestEngineWorkers(base.MuranoTestCase):
     @mock.patch.object(logging, 'setup')
     @mock.patch('oslo_service.service.launch')
     def test_workers_good_setting(self, launch, setup, parse_args):
-        self.override_config("workers", 8, "engine")
+        self.override_config("engine_workers", 8, "engine")
         engine.main()
         launch.assert_called_once_with(mock.ANY, mock.ANY, workers=8)
 
@@ -50,7 +47,7 @@ class TestEngineWorkers(base.MuranoTestCase):
     @mock.patch.object(logging, 'setup')
     @mock.patch('oslo_service.service.launch')
     def test_workers_zero_setting(self, launch, setup, parse_args):
-        self.override_config("workers", 0, "engine")
+        self.override_config("engine_workers", 0, "engine")
         engine.main()
         launch.assert_called_once_with(mock.ANY, mock.ANY,
                                        workers=processutils.get_worker_count())

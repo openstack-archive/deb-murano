@@ -102,7 +102,7 @@ class TestContracts(test_case.DslTestCase):
     def test_class_contract_by_ref(self):
         arg = om.Object('SampleClass2', class2Property='qwerty')
         result = self._runner.testClassContract(arg)
-        self.assertEqual(arg.id, result.id)
+        self.assertNotEqual(arg.id, result.id)
 
     def test_class_contract_failure(self):
         self.assertRaises(
@@ -125,6 +125,37 @@ class TestContracts(test_case.DslTestCase):
         result = self._runner.testClassFromIdContract(object_id)
         self.assertIsInstance(result, dsl.MuranoObjectInterface)
         self.assertEqual(object_id, result.id)
+
+    def test_template_contract(self):
+        arg = om.Object('CreatedClass2', property1='qwerty', property2=123)
+        result = self._runner.testTemplateContract(arg)
+        self.assertIsInstance(result, dict)
+        self.assertItemsEqual(['?', 'property1', 'property2'], result.keys())
+
+    def test_template_property_contract(self):
+        template = {
+            'foo': 123
+        }
+        self.new_runner(
+            om.Object('ContractExamples', templateProperty=template))
+
+    def test_template_contract_fail_on_type(self):
+        arg = om.Object('SampleClass2', class2Property='qwerty')
+        self.assertRaises(
+            exceptions.ContractViolationException,
+            self._runner.testTemplateContract, arg)
+
+    def test_template_contract_with_property_exclusion(self):
+        arg = om.Object('CreatedClass2', property1='qwerty',
+                        property2='INVALID')
+        result = self._runner.testTemplateContractExcludeProperty(arg)
+        self.assertIsInstance(result, dict)
+        self.assertItemsEqual(['?', 'property1'], result.keys())
+
+    def test_template_contract_with_property_exclusion_from_mpl(self):
+        result = self._runner.testTemplateContractExcludePropertyFromMpl()
+        self.assertIsInstance(result, dict)
+        self.assertItemsEqual(['?', 'property1'], result.keys())
 
     def test_check_contract(self):
         arg = om.Object('SampleClass2', class2Property='qwerty')

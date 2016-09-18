@@ -15,6 +15,7 @@
 import collections
 import contextlib
 import functools
+import gc
 import inspect
 import itertools
 import re
@@ -38,6 +39,8 @@ from murano.dsl import dsl_types
 from murano.dsl import exceptions
 
 _threads_sequencer = 0
+# type string: ns.something.MyApp[/1.2.3-alpha][@my.package.fqn]
+TYPE_RE = re.compile(r'([a-zA-Z0-9_.]+)(?:/([^@]+))?(?:@([a-zA-Z0-9_.]+))?$')
 
 
 def evaluate(value, context, freeze=True):
@@ -71,12 +74,7 @@ def evaluate(value, context, freeze=True):
 def merge_lists(list1, list2):
     result = []
     for item in list1 + list2:
-        exists = False
-        for old_item in result:
-            if item == old_item:
-                exists = True
-                break
-        if not exists:
+        if item not in result:
             result.append(item)
     return result
 
@@ -116,13 +114,12 @@ def parallel_select(collection, func, limit=1000):
     # workaround for eventlet issue 232
     # https://github.com/eventlet/eventlet/issues/232
     context = get_context()
-    session = get_execution_session()
+    object_store = get_object_store()
 
     def wrapper(element):
         try:
-            with contextual(context):
-                with execution_session(session):
-                    return func(element), False, None
+            with with_object_store(object_store), contextual(context):
+                return func(element), False, None
         except Exception as e:
             return e, True, sys.exc_info()[2]
 
@@ -145,10 +142,9 @@ def get_context():
     return getattr(current_thread, constants.TL_CONTEXT, None)
 
 
-def get_executor(context=None):
-    context = context or get_context()
-    result = context[constants.CTX_EXECUTOR]
-    return None if not result else result()
+def get_executor():
+    store = get_object_store()
+    return None if store is None else store.executor
 
 
 def get_type(context=None):
@@ -156,28 +152,19 @@ def get_type(context=None):
     return context[constants.CTX_TYPE]
 
 
-def get_execution_session(context=None):
-    context = context or get_context()
-    session = None
-    if context is not None:
-        session = context[constants.CTX_EXECUTION_SESSION]
-    if session is None:
-        current_thread = eventlet.greenthread.getcurrent()
-        session = getattr(current_thread, constants.TL_SESSION, None)
-    return session
+def get_execution_session():
+    executor = get_executor()
+    return None if executor is None else executor.execution_session
 
 
-def get_object_store(context=None):
-    context = context or get_context()
-    this = context[constants.CTX_THIS]
-    return this.object_store if isinstance(
-        this, dsl_types.MuranoObject) else None
+def get_object_store():
+    current_thread = eventlet.greenthread.getcurrent()
+    return getattr(current_thread, constants.TL_OBJECT_STORE, None)
 
 
-def get_package_loader(context=None):
-    context = context or get_context()
-    result = context[constants.CTX_PACKAGE_LOADER]
-    return None if not result else result()
+def get_package_loader():
+    executor = get_executor()
+    return None if executor is None else executor.package_loader
 
 
 def get_this(context=None):
@@ -190,10 +177,9 @@ def get_caller_context(context=None):
     return context[constants.CTX_CALLER_CONTEXT]
 
 
-def get_attribute_store(context=None):
-    context = context or get_context()
-    store = context[constants.CTX_ATTRIBUTE_STORE]
-    return None if not store else store()
+def get_attribute_store():
+    executor = get_executor()
+    return None if executor is None else executor.attribute_store
 
 
 def get_current_instruction(context=None):
@@ -208,7 +194,7 @@ def get_current_method(context=None):
 
 def get_yaql_engine(context=None):
     context = context or get_context()
-    return context[constants.CTX_YAQL_ENGINE]
+    return None if context is None else context[constants.CTX_YAQL_ENGINE]
 
 
 def get_current_exception(context=None):
@@ -231,6 +217,16 @@ def get_class(name, context=None):
     murano_type = get_names_scope(context)
     name = murano_type.namespace_resolver.resolve_name(name)
     return murano_type.package.find_class(name)
+
+
+def get_contract_passkey():
+    current_thread = eventlet.greenthread.getcurrent()
+    return getattr(current_thread, constants.TL_CONTRACT_PASSKEY, None)
+
+
+def is_objects_dry_run_mode():
+    current_thread = eventlet.greenthread.getcurrent()
+    return bool(getattr(current_thread, constants.TL_OBJECTS_DRY_RUN, False))
 
 
 def get_current_thread_id():
@@ -266,8 +262,8 @@ def contextual(ctx):
     return thread_local_attribute(constants.TL_CONTEXT, ctx)
 
 
-def execution_session(session):
-    return thread_local_attribute(constants.TL_SESSION, session)
+def with_object_store(object_store):
+    return thread_local_attribute(constants.TL_OBJECT_STORE, object_store)
 
 
 def parse_version_spec(version_spec):
@@ -355,6 +351,9 @@ def cast(obj, murano_class, pov_or_version_spec=None):
 
 
 def is_instance_of(obj, class_name, pov_or_version_spec=None):
+    if not isinstance(obj, (dsl_types.MuranoObject,
+                            dsl_types.MuranoObjectInterface)):
+        return False
     try:
         cast(obj, class_name, pov_or_version_spec)
         return True
@@ -513,37 +512,97 @@ def resolve_type(value, scope_type, return_reference=False):
     return result
 
 
-def instantiate(data, owner, object_store, context, scope_type,
-                default_type=None):
-    if data is None:
-        data = {}
-    if not isinstance(data, yaqlutils.MappingType):
-        raise ValueError('Incorrect object initialization format')
-    default_type = resolve_type(default_type, scope_type)
-    if len(data) == 1:
-        key = next(iter(data.keys()))
-        ns_resolver = scope_type.namespace_resolver
-        if ns_resolver.is_typename(key, False) or isinstance(
-                key, (dsl_types.MuranoTypeReference, dsl_types.MuranoType)):
+def parse_object_definition(spec, scope_type, context):
+    if not isinstance(spec, yaqlutils.MappingType):
+        return None
+
+    if context:
+        spec = evaluate(spec, context, freeze=False)
+    else:
+        spec = spec.copy()
+    system_data = None
+    type_obj = None
+    props = {}
+    ns_resolver = scope_type.namespace_resolver if scope_type else None
+    for key in spec:
+        if (ns_resolver and ns_resolver.is_typename(key, False) or
+                isinstance(key, (dsl_types.MuranoTypeReference,
+                                 dsl_types.MuranoType))):
             type_obj = resolve_type(key, scope_type)
-            props = yaqlutils.filter_parameters_dict(data[key] or {})
-            props = evaluate(props, context, freeze=False)
-            return type_obj.new(
-                owner, object_store, object_store.executor)(
-                context, **props)
+            props = spec.pop(key) or {}
+            system_data = spec
+            break
+    if system_data is None:
+        props = spec
+        if '?' in spec:
+            system_data = spec.pop('?')
+            obj_type = system_data.get('type')
+            if isinstance(obj_type, dsl_types.MuranoTypeReference):
+                type_obj = obj_type.type
+            elif isinstance(obj_type, dsl_types.MuranoType):
+                type_obj = obj_type
+            elif obj_type:
+                type_str, version_str, package_str = parse_type_string(
+                    obj_type,
+                    system_data.get('classVersion'),
+                    system_data.get('package')
+                )
+                version_spec = parse_version_spec(version_str)
+                package_loader = get_package_loader()
+                if package_str:
+                    package = package_loader.load_package(
+                        package_str, version_spec)
+                else:
+                    package = package_loader.load_class_package(
+                        type_str, version_spec)
+                type_obj = package.find_class(type_str, False)
+        else:
+            system_data = {}
 
-    data = evaluate(data, context, freeze=False)
-    if '?' not in data:
-        if not default_type:
-            raise ValueError('Type information is missing')
-        data.update({'?': {
-            'type': default_type.name,
-            'classVersion': str(default_type.version)
-        }})
-    if 'id' not in data['?']:
-        data['?']['id'] = uuid.uuid4().hex
+    return {
+        'type': type_obj,
+        'properties': yaqlutils.filter_parameters_dict(props),
+        'id': system_data.get('id'),
+        'name': system_data.get('name'),
+        'destroyed': system_data.get('destroyed', False),
+        'dependencies': system_data.get('dependencies', {}),
+        'extra': {
+            key: value for key, value in six.iteritems(system_data)
+            if key.startswith('_')
+        }
+    }
 
-    return object_store.load(data, owner, context)
+
+def assemble_object_definition(parsed, model_format=dsl_types.DumpTypes.Mixed):
+    if model_format == dsl_types.DumpTypes.Inline:
+        result = {
+            parsed['type']: parsed['properties'],
+            'id': parsed['id'],
+            'name': parsed['name'],
+            'dependencies': parsed['dependencies'],
+            'destroyed': parsed['destroyed']
+        }
+        result.update(parsed['extra'])
+        return result
+    result = parsed['properties']
+    header = {
+        'id': parsed['id'],
+        'name': parsed['name']
+    }
+    if parsed['destroyed']:
+        header['destroyed'] = True
+    header.update(parsed['extra'])
+    result['?'] = header
+    if model_format == dsl_types.DumpTypes.Mixed:
+        header['type'] = parsed['type']
+        return result
+    elif model_format == dsl_types.DumpTypes.Serializable:
+        cls = parsed['type']
+        if cls:
+            header['type'] = format_type_string(cls)
+        return result
+    else:
+        raise ValueError('Invalid Serialization Type')
 
 
 def function(c):
@@ -566,3 +625,111 @@ def weak_proxy(obj):
     if isinstance(obj, weakref.ReferenceType):
         obj = obj()
     return weakref.proxy(obj)
+
+
+def weak_ref(obj):
+    class MuranoObjectWeakRef(weakref.ReferenceType):
+        def __init__(self, murano_object):
+            self.ref = weakref.ref(murano_object)
+            self.object_id = murano_object.object_id
+
+        def __call__(self):
+            res = self.ref()
+            if not res:
+                object_store = get_object_store()
+                if object_store:
+                    res = object_store.get(self.object_id)
+                    if res:
+                        self.ref = weakref.ref(res)
+            return res
+
+    if obj is None or isinstance(obj, weakref.ReferenceType):
+        return obj
+
+    if isinstance(obj, dsl_types.MuranoObject):
+        return MuranoObjectWeakRef(obj)
+    return weakref.ref(obj)
+
+
+def parse_type_string(type_str, default_version, default_package):
+    res = TYPE_RE.match(type_str)
+    if res is None:
+        return None
+    parsed_type = res.group(1)
+    parsed_version = res.group(2)
+    parsed_package = res.group(3)
+    return (
+        parsed_type,
+        default_version if parsed_version is None else parsed_version,
+        default_package if parsed_package is None else parsed_package
+    )
+
+
+def format_type_string(type_obj):
+    if isinstance(type_obj, dsl_types.MuranoTypeReference):
+        type_obj = type_obj.type
+    if isinstance(type_obj, dsl_types.MuranoType):
+        return '{0}/{1}@{2}'.format(
+            type_obj.name, type_obj.version, type_obj.package.name)
+    else:
+        raise ValueError('Invalid argument')
+
+
+def patch_dict(dct, path, value):
+    parts = path.split('.')
+    for i in range(len(parts) - 1):
+        if not isinstance(dct, dict):
+            dct = None
+            break
+        dct = dct.get(parts[i])
+    if isinstance(dct, dict):
+        if value is yaqlutils.NO_VALUE:
+            dct.pop(parts[-1])
+        else:
+            dct[parts[-1]] = value
+
+
+def format_scalar(value):
+    if isinstance(value, six.string_types):
+        return "'{0}'".format(value)
+    return six.text_type(value)
+
+
+def is_passkey(value):
+    passkey = get_contract_passkey()
+    return passkey is not None and value is passkey
+
+
+def find_object_owner(obj, predicate):
+    p = obj.owner
+    while p:
+        if predicate(p):
+            return p
+        p = p.owner
+    return None
+
+
+# This function is not intended to be used in the code but is very useful
+# for debugging object reference leaks
+def walk_gc(obj, towards, handler):
+    visited = set()
+    queue = collections.deque([(obj, [])])
+    while queue:
+        item, trace = queue.popleft()
+        if id(item) in visited:
+            continue
+        if handler(item):
+            if towards:
+                yield trace + [item]
+            else:
+                yield [item] + trace
+
+        visited.add(id(item))
+        if towards:
+            queue.extend(
+                [(t, trace + [item]) for t in gc.get_referrers(item)]
+            )
+        else:
+            queue.extend(
+                [(t, [item] + trace) for t in gc.get_referents(item)]
+            )

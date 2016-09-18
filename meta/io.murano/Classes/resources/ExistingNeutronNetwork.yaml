@@ -38,8 +38,7 @@ Properties:
 Workflow:
   initialize:
     Body:
-      - $environment: $.find(std:Environment).require()
-      - $._netExplorer: new(sys:NetworkExplorer, $environment)
+      - $._netExplorer: new(sys:NetworkExplorer, $this.getRegion())
       - $._networks: null
       - $._subnetworks: null
       - $._ports: null
@@ -81,8 +80,7 @@ Workflow:
               $.device_id in $routerCandidates and $.network_id != $this._internalNetworkId).
               select($.network_id)
           - $externalNetwork: $._getNetworks().where(
-              $.get('router:external') = true and $.id in $networkCandidates).
-              firstOrDefault()
+              $.get('router:external') = true and $.id in $networkCandidates).first(null)
           - If: $externalNetwork != null
             Then:
               - $.externalNetworkName: $externalNetwork.name
@@ -91,7 +89,7 @@ Workflow:
       - If: $.externalNetworkName = null
         Then:
           $.externalNetworkName: $._getNetworks().where(
-            $.get('router:external') = true).select($.name).firstOrDefault()
+            $.get('router:external') = true).select($.name).first(null)
       - If: $._externalNetworkId = null and $.externalNetworkName != null
         Then:
           $._externalNetworkId: $._getNetworks().where(
@@ -100,7 +98,7 @@ Workflow:
 
   _getNetworks:
     Body:
-      - If: $._networks = null
+      - If: not $._networks
         Then:
           $._networks: $._netExplorer.listNetworks()
       - Return: $._networks
@@ -130,7 +128,7 @@ Workflow:
       - If: $assignFloatingIp
         Then:
           - $floatingIpNetRef: $._externalNetworkId
-          - $fipName: format('fip-{0}-{1}', $.id(), $instance.name)
+          - $fipName: format('fip-{0}-{1}', id($), $instance.name)
 
       - Return: $.joinInstanceToNetwork(
             instance => $instance,

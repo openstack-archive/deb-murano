@@ -21,7 +21,7 @@ Methods:
     - userData:
         Contract: $.string().notNull()
     Body:
-    - $environment: $.find(std:Environment).require()
+    - $region: $.getRegion()
     - $resources: new(sys:Resources)
     - $muranoInitConf: $.generateCloudConfig()
     - $bootScriptResourceName: format('boot_script_{0}', $.name)
@@ -46,20 +46,22 @@ Methods:
                 - config: {get_resource: $bootScriptResourceName}
 
     - $.setAttr(resourceCloudConfig, [$bootScriptResourceName, $userDataResourceName, $bootConfigResourceName])
-    - $environment.stack.updateTemplate($template)
+    - $region.stack.updateTemplate($template)
     - Return: {get_resource: $userDataResourceName}
 
 
   generateCloudConfig:
     Body:
         - $resources: new(sys:Resources)
-        - $muranoInitConf: $resources.yaml('murano-init.conf')
+        - $muranoInitConf: $resources.yaml('murano-init.conf').bind(dict(
+                instanceHostname  => $.name
+              ))
         - Return: $muranoInitConf
 
   generateUserData:
     Body:
-        - $environment: $.find(std:Environment).require()
-        - $rabbitMqParams: $environment.regionConfigs.get($environment.region).agentRabbitMq
+        - $region: $.getRegion()
+        - $rabbitMqParams: $region.getConfig().agentRabbitMq
         - $resources: new(sys:Resources)
         - $configFile: $resources.string('Agent-v2.template')
         - $initScript: $resources.string('linux-init.sh')
@@ -76,7 +78,7 @@ Methods:
             "%RABBITMQ_SSL%": str($rabbitMqParams.ssl).toLower()
             "%RABBITMQ_INSECURE%": str($rabbitMqParams.insecure).toLower()
             "%RABBITMQ_INPUT_QUEUE%": $.agent.queueName()
-            "%RESULT_QUEUE%": $environment.agentListener.queueName()
+            "%RESULT_QUEUE%": $region.agentListener.queueName()
         - $scriptReplacements:
             "%AGENT_CONFIG_BASE64%": base64encode($configFile.replace($configReplacements))
             "%INTERNAL_HOSTNAME%": $.name
@@ -93,15 +95,15 @@ Methods:
 
         - $userData: $muranoScript.replace($muranoReplacements) + $initScript.replace($scriptReplacements)
         - Return: $userData
-  
+
   releaseResources:
     Body:
-      - $environment: $.find(std:Environment).require()
-      - $template: $environment.stack.current()
-      - If: bool($template.resources) and bool($template.outputs)
+      - $region: $.getRegion()
+      - $template: $region.stack.current()
+      - If: $template.get(resources) and $template.get(outputs)
         Then:
           - $resourcesToDelete: $.getAttr(resourceCloudConfig, [])
           - $template.resources: $template.resources.deleteAll($resourcesToDelete)
-          - $environment.stack.setTemplate($template)
+          - $region.stack.setTemplate($template)
 
-      - $.super($.releaseResources())
+      - super($, $.releaseResources())

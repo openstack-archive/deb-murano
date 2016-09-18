@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import copy
+import json
 
 import eventlet
 import heatclient.client as hclient
@@ -40,7 +41,7 @@ class HeatStackError(Exception):
 
 @dsl.name('io.murano.system.HeatStack')
 class HeatStack(object):
-    def __init__(self, this, name, description=None):
+    def __init__(self, name, description=None, region_name=None):
         self._name = name
         self._template = None
         self._parameters = {}
@@ -50,7 +51,7 @@ class HeatStack(object):
         self._description = description
         self._last_stack_timestamps = (None, None)
         self._tags = ''
-        self._owner = this.find_owner('io.murano.Environment')
+        self._region_name = region_name
 
     @staticmethod
     def _create_client(session, region_name):
@@ -61,8 +62,7 @@ class HeatStack(object):
 
     @property
     def _client(self):
-        region = None if self._owner is None else self._owner['region']
-        return self._get_client(region)
+        return self._get_client(self._region_name)
 
     @staticmethod
     @session_local_storage.execution_session_memoize
@@ -72,8 +72,7 @@ class HeatStack(object):
 
     def _get_token_client(self):
         ks_session = auth_utils.get_token_client_session(conf=CONF.heat)
-        region = None if self._owner is None else self._owner['region']
-        return self._create_client(ks_session, region)
+        return self._create_client(ks_session, self._region_name)
 
     def current(self):
         if self._template is not None:
@@ -212,7 +211,7 @@ class HeatStack(object):
             self._template['description'] = self._description
 
         template = copy.deepcopy(self._template)
-        LOG.debug('Pushing: {template}'.format(template=template))
+        LOG.debug('Pushing: {template}'.format(template=json.dumps(template)))
 
         while True:
             try:

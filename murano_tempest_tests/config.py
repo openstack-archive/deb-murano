@@ -35,7 +35,10 @@ application_catalog_group = cfg.OptGroup(name="application_catalog",
                                          title="Application Catalog Options")
 
 service_broker_group = cfg.OptGroup(name="service_broker",
-                                         title="Service Broker Options")
+                                    title="Service Broker Options")
+
+artifacts_group = cfg.OptGroup(name="artifacts",
+                               title="Glance Artifacts Options")
 
 ApplicationCatalogGroup = [
     # Application catalog tempest configuration
@@ -45,6 +48,10 @@ ApplicationCatalogGroup = [
                     "the value of identity.region is used instead. "
                     "If no such region is found in the service catalog, "
                     "the first found one is used."),
+
+    cfg.StrOpt("linux_image",
+               default="debian-8-m-agent.qcow2",
+               help="Image for linux services"),
 
     cfg.StrOpt("catalog_type",
                default="application-catalog",
@@ -67,7 +74,14 @@ ApplicationCatalogGroup = [
     cfg.BoolOpt("glare_backend",
                 default=False,
                 help="Tells tempest about murano glare backend "
-                     "configuration.")
+                     "configuration."),
+    cfg.BoolOpt("cinder_volume_tests",
+                default=False,
+                help="Whether or not cinder volumes attachment tests "
+                     "are expected to run"),
+    cfg.BoolOpt("deployment_tests",
+                default=False,
+                help="Whether or not deployment tests are expected to run")
 ]
 
 ServiceBrokerGroup = [
@@ -96,4 +110,26 @@ ServiceBrokerGroup = [
                     " to become available.")
 
 
+]
+
+ArtifactsGroup = [
+    # Glance artifacts options
+    cfg.StrOpt("catalog_type",
+               default="artifact",
+               help="Catalog type of Artifacts API"),
+
+    cfg.StrOpt("endpoint_type",
+               default="publicURL",
+               choices=["publicURL", "adminURL", "internalURL"],
+               help="The endpoint type for artifacts service"),
+
+    cfg.IntOpt("build_interval",
+               default=3,
+               help="Time in seconds between artifacts"
+                    " availability checks."),
+
+    cfg.IntOpt("build_timeout",
+               default=500,
+               help="Timeout in seconds to wait for a artifacts"
+                    " to become available.")
 ]

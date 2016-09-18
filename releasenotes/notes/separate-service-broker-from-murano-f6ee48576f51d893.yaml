@@ -1,0 +1,4 @@
+---
+features:
+  - Separated murano service broker from murano-api into a murano-cfapi service.
+    Created a separate database and ``paste.ini`` for service broker.
