@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import sys
 
 import six
@@ -84,7 +83,11 @@ class Runner(object):
         self.executor = executor.MuranoDslExecutor(
             package_loader, TestContextManager(functions),
             execution_session.ExecutionSession())
-        self._root = self.executor.load(model).object
+        self._root = self.executor.load(model)
+        if self._root:
+            self._root = self._root.object
+        if 'ObjectsCopy' in model:
+            self.executor.object_store.cleanup()
 
     def _execute(self, name, obj, *args, **kwargs):
         try:
@@ -101,9 +104,9 @@ class Runner(object):
             cls = obj if isinstance(obj, dsl_types.MuranoType) else obj.type
             runtime_version = cls.package.runtime_version
             yaql_engine = yaql_integration.choose_yaql_engine(runtime_version)
-            return dsl.to_mutable(cls.invoke(
-                name, self.executor, obj, tuple(final_args), final_kwargs),
-                yaql_engine)
+            with helpers.with_object_store(self.executor.object_store):
+                return dsl.to_mutable(cls.invoke(
+                    name, obj, tuple(final_args), final_kwargs), yaql_engine)
         except dsl_exception.MuranoPlException as e:
             if not self.preserve_exception:
                 original_exception = getattr(e, 'original_exception', None)
@@ -136,7 +139,7 @@ class Runner(object):
 
     @property
     def serialized_model(self):
-        return serializer.serialize_model(self._root, self.executor)[0]
+        return serializer.serialize_model(self._root, self.executor)
 
     @property
     def preserve_exception(self):
@@ -145,3 +148,6 @@ class Runner(object):
     @preserve_exception.setter
     def preserve_exception(self, value):
         self._preserve_exception = value
+
+    def session(self):
+        return helpers.with_object_store(self.executor.object_store)

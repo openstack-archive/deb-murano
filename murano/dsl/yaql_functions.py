@@ -24,6 +24,7 @@ from murano.dsl import dsl
 from murano.dsl import dsl_types
 from murano.dsl import helpers
 from murano.dsl import reflection
+from murano.dsl import serializer
 
 
 @specs.parameter('object_', dsl.MuranoObjectParameter())
@@ -47,21 +48,25 @@ def cast(context, object_, type__, version_spec=None):
 @specs.parameter('__object_name', yaqltypes.String(True))
 def new(__context, __type_name, __owner=None, __object_name=None, __extra=None,
         **parameters):
-    object_store = helpers.get_object_store(__context)
-    executor = helpers.get_executor(__context)
-    new_context = __context.create_child_context()
-    for key, value in six.iteritems(parameters):
-        if utils.is_keyword(key):
-            new_context[key] = value
-    return __type_name.type.new(
-        __owner, object_store, executor, name=__object_name)(
-        new_context, **parameters)
+
+    data = {
+        __type_name: parameters,
+        'name': __object_name
+    }
+    for key, value in six.iteritems(__extra or {}):
+        if key.startswith('_'):
+            data[key] = value
+
+    object_store = helpers.get_object_store()
+    return object_store.load(data, __owner, context=__context,
+                             scope_type=helpers.get_names_scope(__context))
 
 
 @specs.parameter('type_name', dsl.MuranoTypeParameter())
 @specs.parameter('parameters', utils.MappingType)
 @specs.parameter('extra', utils.MappingType)
-@specs.parameter('owner', dsl.MuranoObjectParameter(nullable=True))
+@specs.parameter('owner', dsl.MuranoObjectParameter(
+    nullable=True, decorate=False))
 @specs.parameter('object_name', yaqltypes.String(True))
 @specs.name('new')
 def new_from_dict(type_name, context, parameters,
@@ -70,13 +75,22 @@ def new_from_dict(type_name, context, parameters,
                **utils.filter_parameters_dict(parameters))
 
 
+@specs.name('new')
+@specs.parameter('owner', dsl.MuranoObjectParameter(
+    nullable=True, decorate=False))
+@specs.parameter('model', utils.MappingType)
+def new_from_model(context, model, owner=None):
+    object_store = helpers.get_object_store()
+    return object_store.load(model, owner, context=context,
+                             scope_type=helpers.get_names_scope(context))
+
+
 @specs.parameter('object_', dsl.MuranoObjectParameter(decorate=False))
 @specs.parameter('func', yaqltypes.Lambda())
 def super_(context, object_, func=None):
     cast_type = helpers.get_type(context)
     if func is None:
-        return [object_.cast(type) for type in cast_type.parents(
-            object_.real_this.type)]
+        return [object_.cast(type) for type in cast_type.parents]
     return six.moves.map(func, super_(context, object_))
 
 
@@ -151,7 +165,8 @@ def obj_attribution(context, obj, property_name):
 @specs.parameter('property_name', yaqltypes.Keyword())
 @specs.name('#operator_.')
 def obj_attribution_static(context, cls, property_name):
-    return cls.type.get_property(property_name, context)
+    return helpers.get_executor().get_static_property(
+        cls.type, property_name, context)
 
 
 @specs.parameter('receiver', dsl.MuranoObjectParameter(decorate=False))
@@ -159,7 +174,7 @@ def obj_attribution_static(context, cls, property_name):
 @specs.inject('operator', yaqltypes.Super(with_context=True))
 @specs.name('#operator_.')
 def op_dot(context, receiver, expr, operator):
-    executor = helpers.get_executor(context)
+    executor = helpers.get_executor()
     type_context = executor.context_manager.create_type_context(receiver.type)
     obj_context = executor.context_manager.create_object_context(receiver)
     ctx2 = helpers.link_contexts(
@@ -173,7 +188,7 @@ def op_dot(context, receiver, expr, operator):
 @specs.inject('operator', yaqltypes.Super(with_context=True))
 @specs.name('#operator_.')
 def op_dot_static(context, receiver, expr, operator):
-    executor = helpers.get_executor(context)
+    executor = helpers.get_executor()
     type_context = executor.context_manager.create_type_context(
         receiver.type)
     ctx2 = helpers.link_contexts(context, type_context)
@@ -202,6 +217,11 @@ def is_instance_of(obj, type_):
     return type_.type.is_compatible(obj)
 
 
+def is_object(value):
+    return isinstance(value, (dsl_types.MuranoObject,
+                              dsl_types.MuranoTypeReference))
+
+
 @specs.name('call')
 @specs.parameter('name', yaqltypes.String())
 @specs.parameter('args', yaqltypes.Sequence())
@@ -223,10 +243,24 @@ def call_func(context, op_dot, base, name, args, kwargs,
         return base(context, name, args, kwargs, receiver)
 
 
+@specs.parameter('obj', dsl.MuranoObjectParameter(decorate=False))
+@specs.parameter('serialization_type', yaqltypes.String())
+@specs.parameter('ignore_upcasts', bool)
+def dump(obj, serialization_type=dsl_types.DumpTypes.Serializable,
+         ignore_upcasts=True):
+    if serialization_type not in dsl_types.DumpTypes.All:
+        raise ValueError('Invalid Serialization Type')
+    executor = helpers.get_executor()
+    if ignore_upcasts:
+        obj = obj.real_this
+    return serializer.serialize(obj, executor, serialization_type)
+
+
 def register(context, runtime_version):
     context.register_function(cast)
     context.register_function(new)
     context.register_function(new_from_dict)
+    context.register_function(new_from_model)
     context.register_function(id_)
     context.register_function(super_)
     context.register_function(psuper)
@@ -257,5 +291,6 @@ def register(context, runtime_version):
                 context.register_function(spec)
 
     context.register_function(type_from_name)
-
+    context.register_function(is_object)
+    context.register_function(dump)
     return context

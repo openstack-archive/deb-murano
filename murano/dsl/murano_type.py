@@ -14,6 +14,7 @@
 
 import abc
 import collections
+import copy
 import weakref
 
 import semantic_version
@@ -83,20 +84,56 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
                 raise exceptions.InvalidInheritanceError(
                     u'Type {0} cannot have parent with Usage {1}'.format(
                         self.name, p.usage))
+        remappings = self._build_parent_remappings()
+        self._parents = self._adjusted_parents(remappings)
         self._context = None
         self._exported_context = None
-        self._parent_mappings = self._build_parent_remappings()
-        self._property_values = {}
         self._meta = dslmeta.MetaData(meta, dsl_types.MetaTargets.Type, self)
         self._meta_values = None
         self._imports = list(self._resolve_imports(imports))
+
+    def _adjusted_parents(self, remappings):
+        seen = {}
+
+        def altered_clone(class_):
+            seen_class = seen.get(class_)
+            if seen_class is not None:
+                return seen_class
+
+            cls_remapping = remappings.get(class_)
+
+            if cls_remapping is not None:
+                return altered_clone(cls_remapping)
+
+            new_parents = [altered_clone(p) for p in class_._parents]
+            if all(a is b for a, b in zip(class_._parents, new_parents)):
+                return class_
+            res = copy.copy(class_)
+            res._parents = new_parents
+            res._meta_values = None
+            res._context = None
+            res._exported_context = None
+            seen[class_] = res
+            return res
+        return [altered_clone(p) for p in self._parents]
+
+    def __eq__(self, other):
+        if not isinstance(other, MuranoType):
+            return False
+        return self.name == other.name and self.version == other.version
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((self.name, self.version))
 
     @property
     def usage(self):
         return dsl_types.ClassUsages.Class
 
     @property
-    def declared_parents(self):
+    def parents(self):
         return self._parents
 
     @property
@@ -109,10 +146,6 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
         for c in self.ancestors():
             names.update(c.methods.keys())
         return tuple(names)
-
-    @property
-    def parent_mappings(self):
-        return self._parent_mappings
 
     @property
     def extension_class(self):
@@ -147,14 +180,14 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
             raise TypeError('property_typespec')
         self._properties[property_typespec.name] = property_typespec
 
-    def _find_symbol_chains(self, func, origin):
+    def _find_symbol_chains(self, func):
         queue = collections.deque([(self, ())])
         while queue:
             cls, path = queue.popleft()
             symbol = func(cls)
             segment = (symbol,) if symbol is not None else ()
             leaf = True
-            for p in cls.parents(origin):
+            for p in cls.parents:
                 leaf = False
                 queue.append((p, path + segment))
             if leaf:
@@ -176,7 +209,7 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
 
     def _choose_symbol(self, func):
         chains = sorted(
-            self._find_symbol_chains(func, self),
+            self._find_symbol_chains(func),
             key=lambda t: len(t))
         result = []
         for i in range(len(chains)):
@@ -261,33 +294,18 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
             raise exceptions.AmbiguousPropertyNameError(name)
         return result[0]
 
-    def invoke(self, name, executor, this, args, kwargs, context=None):
+    def invoke(self, name, this, args, kwargs, context=None):
         method = self.find_single_method(name)
-        return method.invoke(executor, this, args, kwargs, context)
+        return method.invoke(this, args, kwargs, context)
 
     def is_compatible(self, obj):
         if isinstance(obj, (murano_object.MuranoObject,
                             dsl.MuranoObjectInterface,
                             dsl_types.MuranoTypeReference)):
             obj = obj.type
-        if obj is self:
+        if obj == self:
             return True
-        return any(cls is self for cls in obj.ancestors())
-
-    def new(self, owner, object_store, executor, **kwargs):
-        obj = murano_object.MuranoObject(
-            self, helpers.weak_proxy(owner), object_store, executor, **kwargs)
-
-        def initializer(__context, **params):
-            if __context is None:
-                __context = executor.create_object_context(obj)
-            init_context = __context.create_child_context()
-            init_context[constants.CTX_ALLOW_PROPERTY_WRITES] = True
-            obj.initialize(init_context, object_store, params)
-            return obj
-
-        initializer.object = obj
-        return initializer
+        return any(cls == self for cls in obj.ancestors())
 
     def __repr__(self):
         return 'MuranoClass({0}/{1})'.format(self.name, self.version)
@@ -320,7 +338,7 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
         }
         for cls, parent in helpers.traverse(
                 ((self, parent) for parent in self._parents),
-                lambda cp: ((cp[1], anc) for anc in cp[1].declared_parents)):
+                lambda cp: ((cp[1], anc) for anc in cp[1].parents)):
             if cls.package != parent.package:
                 requirement = cls.package.requirements[parent.package.name]
                 aggregation.setdefault(parent.package.name, set()).add(
@@ -331,8 +349,7 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
             mappings = self._remap_package(versions)
             package_bindings.update(mappings)
 
-        for cls in helpers.traverse(
-                self.declared_parents, lambda c: c.declared_parents):
+        for cls in helpers.traverse(self.parents, lambda c: c.parents):
             if cls.package in package_bindings:
                 package2 = package_bindings[cls.package]
                 cls2 = package2.classes[cls.name]
@@ -365,17 +382,8 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
                 i += 1
         return result
 
-    def parents(self, origin):
-        mappings = origin.parent_mappings
-        yielded = set()
-        for p in self._parents:
-            parent = mappings.get(p, p)
-            if parent not in yielded:
-                yielded.add(parent)
-                yield parent
-
     def ancestors(self):
-        for c in helpers.traverse(self, lambda t: t.parents(self)):
+        for c in helpers.traverse(self, lambda t: t.parents):
             if c is not self:
                 yield c
 
@@ -417,20 +425,9 @@ class MuranoClass(dsl_types.MuranoClass, MuranoType, dslmeta.MetaProvider):
                             m.static_stub, name=m.static_stub.name)
         return self._exported_context
 
-    def get_property(self, name, context):
-        prop = self.find_static_property(name)
-        cls = prop.declaring_type
-        value = cls._property_values.get(name, prop.default)
-        return prop.transform(value, cls, None, context)
-
-    def set_property(self, name, value, context):
-        prop = self.find_static_property(name)
-        cls = prop.declaring_type
-        cls._property_values[name] = prop.transform(value, cls, None, context)
-
     def get_meta(self, context):
         if self._meta_values is None:
-            executor = helpers.get_executor(context)
+            executor = helpers.get_executor()
             context = executor.create_type_context(
                 self, caller_context=context)
             self._meta_values = dslmeta.merge_providers(
@@ -553,3 +550,21 @@ def _create_meta_class(cls, name, ns_resolver, data, package, *args, **kwargs):
     meta_cls.cardinality = cardinality
     meta_cls.inherited = inherited
     return meta_cls
+
+
+def weigh_type_hierarchy(cls):
+    """Weighs classes in type hierarchy by their distance from the root
+
+    :param cls: root of hierarchy
+    :return: dictionary that has class name as keys and distance from the root
+             a values. Root class has always a distance of 0. If the class
+             (or different versions of that class) is achievable through
+             several paths the shortest distance is used.
+    """
+
+    result = {}
+    for c, w in helpers.traverse(
+            [(cls, 0)], lambda t: six.moves.map(
+                lambda p: (p, t[1] + 1), t[0].parents)):
+        result.setdefault(c.name, w)
+    return result

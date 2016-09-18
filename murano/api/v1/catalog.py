@@ -28,9 +28,10 @@ import six
 from webob import exc
 
 import murano.api.v1
-from murano.api.v1 import schemas
+from murano.api.v1 import validation_schemas
 from murano.common import exceptions
 from murano.common import policy
+import murano.common.utils as murano_utils
 from murano.common import wsgi
 from murano.db.catalog import api as db_api
 from murano.common.i18n import _, _LW
@@ -46,6 +47,7 @@ SUPPORTED_PARAMS = murano.api.v1.SUPPORTED_PARAMS
 LIST_PARAMS = murano.api.v1.LIST_PARAMS
 ORDER_VALUES = murano.api.v1.ORDER_VALUES
 PKG_PARAMS_MAP = murano.api.v1.PKG_PARAMS_MAP
+OPERATOR_VALUES = murano.api.v1.OPERATOR_VALUES
 
 
 def _check_content_type(req, content_type):
@@ -67,7 +69,17 @@ def _get_filters(query_params):
             continue
 
         if k in LIST_PARAMS:
-            filters.setdefault(k, []).append(v)
+            if v.startswith('in:') and k in OPERATOR_VALUES:
+                in_value = v[len('in:'):]
+                try:
+                    filters[k] = murano_utils.split_for_quotes(in_value)
+                except ValueError as err:
+                    LOG.warning(_LW("Search by parameter '{name}' "
+                                    "caused an {message} error."
+                                    "Skipping it.").format(name=k,
+                                                           message=err))
+            else:
+                filters.setdefault(k, []).append(v)
         else:
             filters[k] = v
         order_by = filters.get('order_by', [])
@@ -223,7 +235,8 @@ class Controller(object):
         file_obj, package_meta = _validate_body(body)
         if package_meta:
             try:
-                jsonschema.validate(package_meta, schemas.PKG_UPLOAD_SCHEMA)
+                jsonschema.validate(package_meta,
+                                    validation_schemas.PKG_UPLOAD_SCHEMA)
             except jsonschema.ValidationError as e:
                 msg = _("Package schema is not valid: {reason}").format(
                     reason=e)
@@ -349,7 +362,7 @@ class Controller(object):
                 if key not in valid_query_params:
                     raise exc.HTTPBadRequest(
                         _('Bad value passed to filter. '
-                          'Got {key}, exected:{valid}').format(
+                          'Got {key}, expected:{valid}').format(
                             key=key, valid=', '.join(valid_query_params)))
                 if key == 'sort_keys':
                     available_sort_keys = ['name', 'created',

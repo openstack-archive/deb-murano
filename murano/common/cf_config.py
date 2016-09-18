@@ -1,4 +1,4 @@
-# Copyright 2011 OpenStack LLC.
+# Copyright 2011 OpenStack Foundation
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -33,7 +33,10 @@ cfapi_opts = [
     cfg.StrOpt('user_domain_name', default='default',
                help=_('Domain name of the user')),
     cfg.StrOpt('project_domain_name', default='default',
-               help=_('Domain name of the project'))]
+               help=_('Domain name of the project')),
+    cfg.StrOpt('packages_service', default='murano',
+               help=_('Package service which should be used by service'
+                      ' broker'))]
 
 CONF = cfg.CONF
 CONF.register_opts(cfapi_opts, group='cfapi')

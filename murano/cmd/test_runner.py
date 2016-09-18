@@ -31,6 +31,7 @@ from murano import version
 from murano.common.i18n import _, _LE
 from murano.common import config
 from murano.common import engine
+from murano.dsl import dsl_exception
 from murano.dsl import dsl_types
 from murano.dsl import exceptions
 from murano.dsl import executor
@@ -162,7 +163,7 @@ class MuranoTestRunner(object):
             method = obj.type.find_single_method(name)
             method.scope = dsl_types.MethodScopes.Public
             LOG.debug('Executing: {0}.{1}'.format(obj.type.name, name))
-            obj.type.invoke(name, exc, obj, (), {})
+            exc.run(obj.type, name, obj, (), {})
 
     def _validate_keystone_opts(self, args):
         ks_opts_to_config = {
@@ -254,8 +255,9 @@ class MuranoTestRunner(object):
                         pkg_loader,
                         mock_context_manager.MockContextManager(),
                         test_session)
-                    obj = package.find_class(pkg_class, False).new(
-                        None, dsl_executor.object_store, dsl_executor)(None)
+                    obj = dsl_executor.object_store.load(
+                        {}, None,
+                        default_type=package.find_class(pkg_class, False))
 
                     test_name = "{0}.{1}".format(obj.type.name, m)
                     dots_number = max_length - len(test_name)
@@ -267,7 +269,7 @@ class MuranoTestRunner(object):
                     test_session.start()
                     try:
                         run_count += 1
-                        obj.type.invoke(m, dsl_executor, obj, (), {})
+                        dsl_executor.run(obj.type, m, obj, (), {})
                         self._call_service_method(
                             'tearDown', dsl_executor, obj)
                         msg = '{0}{1}{2}\n'.format(OK_COLOR, 'OK', END_COLOR)
@@ -276,11 +278,20 @@ class MuranoTestRunner(object):
                         sys.stdout.flush()
                     except Exception as e:
                         error_count += 1
-                        msg = '{0}{1}: {2}{3}\n'.format(FAIL_COLOR,
-                                                        'FAIL!',
-                                                        e,
-                                                        END_COLOR)
+                        msg = ''.join((
+                            FAIL_COLOR, 'FAIL!', END_COLOR, '\n'))
                         sys.stdout.write(msg)
+                        if isinstance(e, dsl_exception.MuranoPlException):
+                            tb = e.format()
+                        else:
+                            tb = traceback.format_exc()
+
+                        sys.stdout.write(''.join((
+                            FAIL_COLOR,
+                            tb,
+                            END_COLOR,
+                            '\n'
+                        )))
                         sys.stdout.flush()
 
                         LOG.exception('Test {0} failed'.format(test_name))
@@ -363,7 +374,10 @@ def main():
         exit_code = test_runner.run_tests()
         sys.exit(exit_code)
     except Exception as e:
-        tb = traceback.format_exc()
+        if isinstance(e, dsl_exception.MuranoPlException):
+            tb = e.format()
+        else:
+            tb = traceback.format_exc()
         err_msg = _LE("Command failed: {0}\n{1}").format(e, tb)
         LOG.error(err_msg)
         sys.exit(err_msg)

@@ -18,6 +18,7 @@ from yaql import utils
 
 from murano.dsl import dsl
 from murano.dsl import dsl_types
+from murano.dsl import helpers
 
 
 class ObjRef(object):
@@ -25,18 +26,30 @@ class ObjRef(object):
         self.ref_obj = obj
 
 
-def serialize(obj, executor):
-    return serialize_model(obj, executor, True)[0]['Objects']
+def serialize(obj, executor,
+              serialization_type=dsl_types.DumpTypes.Serializable):
+    with helpers.with_object_store(executor.object_store):
+        return serialize_model(
+            obj, executor, True,
+            make_copy=False,
+            serialize_attributes=False,
+            serialize_actions=False,
+            serialization_type=serialization_type,
+            with_destruction_dependencies=False)['Objects']
 
 
 def _serialize_object(root_object, designer_attributes, allow_refs,
-                      executor):
+                      executor, serialize_actions=True,
+                      serialization_type=dsl_types.DumpTypes.Serializable,
+                      with_destruction_dependencies=True):
     serialized_objects = set()
 
     obj = root_object
     while True:
         obj, need_another_pass = _pass12_serialize(
-            obj, None, serialized_objects, designer_attributes, executor)
+            obj, None, serialized_objects, designer_attributes, executor,
+            serialize_actions, serialization_type, allow_refs,
+            with_destruction_dependencies)
         if not need_another_pass:
             break
     tree = [obj]
@@ -44,26 +57,39 @@ def _serialize_object(root_object, designer_attributes, allow_refs,
     return tree[0], serialized_objects
 
 
-def serialize_model(root_object, executor, allow_refs=False):
+def serialize_model(root_object, executor,
+                    allow_refs=False,
+                    make_copy=True,
+                    serialize_attributes=True,
+                    serialize_actions=True,
+                    serialization_type=dsl_types.DumpTypes.Serializable,
+                    with_destruction_dependencies=True):
     designer_attributes = executor.object_store.designer_attributes
 
     if root_object is None:
         tree = None
         tree_copy = None
         attributes = []
-        serialized_objects = set()
     else:
-        tree, serialized_objects = _serialize_object(
-            root_object, designer_attributes, allow_refs, executor)
-        tree_copy, _ = _serialize_object(root_object, None, allow_refs,
-                                         executor)
-        attributes = executor.attribute_store.serialize(serialized_objects)
+        with helpers.with_object_store(executor.object_store):
+            tree, serialized_objects = _serialize_object(
+                root_object, designer_attributes, allow_refs, executor,
+                serialize_actions, serialization_type,
+                with_destruction_dependencies)
+
+            tree_copy = _serialize_object(
+                root_object, None, allow_refs, executor, serialize_actions,
+                serialization_type,
+                with_destruction_dependencies)[0] if make_copy else None
+
+            attributes = executor.attribute_store.serialize(
+                serialized_objects) if serialize_attributes else None
 
     return {
         'Objects': tree,
         'ObjectsCopy': tree_copy,
         'Attributes': attributes
-    }, serialized_objects
+    }
 
 
 def _serialize_available_action(obj, current_actions, executor):
@@ -92,7 +118,9 @@ def _serialize_available_action(obj, current_actions, executor):
 
 
 def _pass12_serialize(value, parent, serialized_objects,
-                      designer_attributes_getter, executor):
+                      designer_attributes_getter, executor,
+                      serialize_actions, serialization_type, allow_refs,
+                      with_destruction_dependencies):
     if isinstance(value, dsl.MuranoObjectInterface):
         value = value.object
     if isinstance(value, (six.string_types,
@@ -107,26 +135,50 @@ def _pass12_serialize(value, parent, serialized_objects,
             value = value.ref_obj
         else:
             return value, False
+    if isinstance(value, (dsl_types.MuranoType,
+                          dsl_types.MuranoTypeReference)):
+        return helpers.format_type_string(value), False
+    if helpers.is_passkey(value):
+        return value, False
     if isinstance(value, dsl_types.MuranoObject):
-        result = value.to_dictionary()
+        result = value.to_dictionary(
+            serialization_type=serialization_type, allow_refs=allow_refs,
+            with_destruction_dependencies=with_destruction_dependencies)
         if designer_attributes_getter is not None:
-            result['?'].update(designer_attributes_getter(value.object_id))
-            # deserialize and merge list of actions
-            result['?']['_actions'] = _serialize_available_action(
-                value, result['?'].get('_actions', {}), executor)
+            if serialization_type == dsl_types.DumpTypes.Inline:
+                system_data = result
+            else:
+                system_data = result['?']
+            system_data.update(designer_attributes_getter(value.object_id))
+            if serialize_actions:
+                # deserialize and merge list of actions
+                system_data['_actions'] = _serialize_available_action(
+                    value, system_data.get('_actions', {}), executor)
         serialized_objects.add(value.object_id)
         return _pass12_serialize(
             result, value, serialized_objects, designer_attributes_getter,
-            executor)
+            executor, serialize_actions, serialization_type, allow_refs,
+            with_destruction_dependencies)
     elif isinstance(value, utils.MappingType):
         result = {}
         need_another_pass = False
 
         for d_key, d_value in six.iteritems(value):
-            result_key = str(d_key)
-            result_value = _pass12_serialize(
-                d_value, parent, serialized_objects,
-                designer_attributes_getter, executor)
+            if (isinstance(d_key, dsl_types.MuranoType) and
+                    serialization_type == dsl_types.DumpTypes.Serializable):
+                result_key = str(d_key)
+            else:
+                result_key = d_key
+            if (result_key == 'type' and
+                    isinstance(d_value, dsl_types.MuranoType) and
+                    serialization_type == dsl_types.DumpTypes.Mixed):
+                result_value = d_value, False
+            else:
+                result_value = _pass12_serialize(
+                    d_value, parent, serialized_objects,
+                    designer_attributes_getter, executor, serialize_actions,
+                    serialization_type, allow_refs,
+                    with_destruction_dependencies)
             result[result_key] = result_value[0]
             if result_value[1]:
                 need_another_pass = True
@@ -137,7 +189,8 @@ def _pass12_serialize(value, parent, serialized_objects,
         for t in value:
             v, nmp = _pass12_serialize(
                 t, parent, serialized_objects, designer_attributes_getter,
-                executor)
+                executor, serialize_actions, serialization_type, allow_refs,
+                with_destruction_dependencies)
             if nmp:
                 need_another_pass = True
             result.append(v)
@@ -180,3 +233,27 @@ def is_nested_in(obj, ancestor):
         if obj is None:
             return False
         obj = obj.owner
+
+
+def collect_objects(root_object):
+    visited = set()
+
+    def rec(obj):
+        if utils.is_sequence(obj) or isinstance(obj, utils.SetType):
+            for value in obj:
+                for t in rec(value):
+                    yield t
+        elif isinstance(obj, utils.MappingType):
+            for value in six.itervalues(obj):
+                for t in rec(value):
+                    yield t
+        elif isinstance(obj, dsl_types.MuranoObjectInterface):
+                for t in rec(obj.object):
+                    yield t
+        elif isinstance(obj, dsl_types.MuranoObject) and obj not in visited:
+            visited.add(obj)
+            yield obj
+            for t in rec(obj.to_dictionary()):
+                yield t
+
+    return rec(root_object)

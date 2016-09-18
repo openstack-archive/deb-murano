@@ -52,7 +52,7 @@ class TestModelPolicyEnforcer(base.MuranoTestCase):
         executor._model_policy_enforcer = mock.Mock()
 
         CONF.engine.enable_model_policy_enforcer = False
-        executor._validate_model(self.obj, self.package_loader)
+        executor._validate_model(self.obj, self.package_loader, None)
 
         self.assertFalse(executor._model_policy_enforcer.validate.called)
 
@@ -61,7 +61,8 @@ class TestModelPolicyEnforcer(base.MuranoTestCase):
         executor._model_policy_enforcer = mock.Mock()
 
         CONF.engine.enable_model_policy_enforcer = True
-        executor._validate_model(self.obj, self.package_loader)
+        dsl_executor = mock.Mock()
+        executor._validate_model(self.obj, self.package_loader, dsl_executor)
 
         executor._model_policy_enforcer \
             .validate.assert_called_once_with(self.model_dict,
@@ -111,23 +112,24 @@ class TestModelPolicyEnforcer(base.MuranoTestCase):
         result = enforcer._parse_simulation_result(
             'predeploy_errors', 'env1', congress_response)
 
-        self.assertFalse("unexpected response" in result)
-        self.assertTrue("Instance 1 has problem" in result)
-        self.assertTrue("Instance 2 has problem" in result)
-        self.assertFalse("Instance 3 has problem" in result)
+        self.assertNotIn("unexpected response", result)
+        self.assertIn("Instance 1 has problem", result)
+        self.assertIn("Instance 2 has problem", result)
+        self.assertNotIn("Instance 3 has problem", result)
 
     def test_none_model(self):
         executor = engine.TaskExecutor(self.task)
         executor._model_policy_enforcer = mock.Mock()
 
         CONF.engine.enable_model_policy_enforcer = True
+        dsl_executor = mock.Mock()
 
-        executor._validate_model(None, self.package_loader)
+        executor._validate_model(None, self.package_loader, dsl_executor)
 
         self.assertFalse(executor._model_policy_enforcer.modify.called)
         self.assertFalse(executor._model_policy_enforcer.validate.called)
 
-        executor._validate_model(self.obj, self.package_loader)
+        executor._validate_model(self.obj, self.package_loader, dsl_executor)
 
         self.assertTrue(executor._model_policy_enforcer.modify.called)
         self.assertTrue(executor._model_policy_enforcer.validate.called)

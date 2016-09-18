@@ -54,11 +54,12 @@ class BaseApplicationCatalogTest(base.BaseTestCase):
             cls.admin_role = CONF.identity.admin_role
         else:
             cls.admin_role = 'admin'
-        cls.dynamic_cred = dynamic_creds.DynamicCredentialProvider(
-            identity_version=CONF.identity.auth_version,
-            name=cls.__name__, admin_role=cls.admin_role,
-            admin_creds=common_creds.get_configured_admin_credentials(
-                'identity_admin'))
+        if not hasattr(cls, 'dynamic_cred'):
+            cls.dynamic_cred = dynamic_creds.DynamicCredentialProvider(
+                identity_version=CONF.identity.auth_version,
+                name=cls.__name__, admin_role=cls.admin_role,
+                admin_creds=common_creds.get_configured_admin_credentials(
+                    'identity_admin'))
         if type_of_creds == 'primary':
             creds = cls.dynamic_cred.get_primary_creds()
         elif type_of_creds == 'admin':
@@ -86,6 +87,7 @@ class BaseApplicationCatalogTest(base.BaseTestCase):
             creds = cls.get_configured_isolated_creds(type_of_creds='primary')
             cls.os = clients.Manager(credentials=creds)
         cls.application_catalog_client = cls.os.application_catalog_client
+        cls.artifacts_client = cls.os.artifacts_client
 
     @classmethod
     def resource_cleanup(cls):

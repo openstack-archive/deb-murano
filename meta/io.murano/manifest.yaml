@@ -10,7 +10,7 @@
 #  License for the specific language governing permissions and limitations
 #  under the License.
 
-Format: 1.1
+Format: 1.4
 
 Type: Library
 
@@ -28,6 +28,8 @@ Tags: [MuranoPL]
 Classes:
   io.murano.Object: Object.yaml
   io.murano.Environment: Environment.yaml
+  io.murano.CloudRegion: CloudRegion.yaml
+  io.murano.CloudResource: CloudResource.yaml
   io.murano.Application: Application.yaml
   io.murano.Exception: Exception.yaml
   io.murano.StackTrace: StackTrace.yaml
@@ -73,9 +75,14 @@ Classes:
   io.murano.metadata.Description: metadata/Description.yaml
   io.murano.metadata.HelpText: metadata/HelpText.yaml
   io.murano.metadata.ModelBuilder: metadata/ModelBuilder.yaml
-  io.murano.metadata.Position: metadata/Position.yaml
   io.murano.metadata.Title: metadata/Title.yaml
   io.murano.metadata.forms.Hidden: metadata/forms/Hidden.yaml
+  io.murano.metadata.forms.Position: metadata/forms/Position.yaml
   io.murano.metadata.forms.Section: metadata/forms/Section.yaml
+  io.murano.metadata.engine.Serialize: metadata/engine/Serialize.yaml
+  io.murano.metadata.engine.Synchronize: metadata/engine/Synchronize.yaml
+
 
   io.murano.test.TestFixture: test/TestFixture.yaml
+  io.murano.test.TestFixtureWithEnvironment: test/TestFixture.yaml
+  io.murano.test.DummyNetwork: test/TestFixture.yaml

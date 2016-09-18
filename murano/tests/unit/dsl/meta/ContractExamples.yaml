@@ -9,6 +9,9 @@ Properties:
   ordinaryProperty:
     Contract: $.string()
 
+  templateProperty:
+    Contract: $.template(TemplateTestChild, excludeProperties => [bar])
+
 Methods:
   testStringContract:
     Arguments:
@@ -35,6 +38,28 @@ Methods:
     Arguments:
       arg:
         Contract: $.class(SampleClass2)
+    Body:
+      Return: $arg
+
+  testTemplateContract:
+    Arguments:
+      arg:
+        Contract: $.template(CreatedClass2)
+    Body:
+      Return: $arg
+
+  testTemplateContractExcludePropertyFromMpl:
+    Body:
+      - $model:
+          :CreatedClass2:
+            property1: qwerty
+            property2: 'not integer'
+      - Return: $.testTemplateContractExcludeProperty($model)
+
+  testTemplateContractExcludeProperty:
+    Arguments:
+      arg:
+        Contract: $.template(CreatedClass2, excludeProperties => [property2])
     Body:
       Return: $arg
 
@@ -240,3 +265,10 @@ Methods:
       - $.target: new(TestedTarget, $this)
       - Return: $.target.dictArgs({'a' => [1, 2, 4].where($)})
 
+---
+
+Name: TemplateTestChild
+
+Properties:
+  bar:
+    Contract: $.int().notNull()

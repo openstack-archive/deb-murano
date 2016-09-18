@@ -33,6 +33,7 @@ from murano.dsl import context_manager
 from murano.dsl import dsl_exception
 from murano.dsl import executor as dsl_executor
 from murano.dsl import helpers
+from murano.dsl import schema_generator
 from murano.dsl import serializer
 from murano.engine import execution_session
 from murano.engine import package_loader
@@ -57,7 +58,11 @@ class EngineService(service.Service):
         self.server = None
 
     def start(self):
-        endpoints = [TaskProcessingEndpoint(), StaticActionEndpoint()]
+        endpoints = [
+            TaskProcessingEndpoint(),
+            StaticActionEndpoint(),
+            SchemaEndpoint()
+        ]
 
         transport = messaging.get_transport(CONF)
         s_target = target.Target('murano', 'tasks', server=str(uuid.uuid4()))
@@ -101,6 +106,17 @@ class ContextManager(context_manager.ContextManager):
             context = helpers.link_contexts(
                 context, yaql_functions.get_restricted_context())
         return context
+
+
+class SchemaEndpoint(object):
+    @classmethod
+    def generate_schema(cls, context, *args, **kwargs):
+        session = execution_session.ExecutionSession()
+        session.token = context['token']
+        session.project_id = context['project_id']
+        with package_loader.CombinedPackageLoader(session) as pkg_loader:
+            return schema_generator.generate_schema(
+                pkg_loader, ContextManager(), *args, **kwargs)
 
 
 class TaskProcessingEndpoint(object):
@@ -180,7 +196,11 @@ class TaskExecutor(object):
             return self.exception_result(e, None, '<system>')
 
         with package_loader.CombinedPackageLoader(self._session) as pkg_loader:
+            pkg_loader.import_fixation_table(
+                self._session.system_attributes.get('Packages', {}))
             result = self._execute(pkg_loader)
+            self._session.system_attributes[
+                'Packages'] = pkg_loader.export_fixation_table()
         self._model['SystemData'] = self._session.system_attributes
         result['model'] = self._model
 
@@ -194,60 +214,52 @@ class TaskExecutor(object):
         return result
 
     def _execute(self, pkg_loader):
+
         get_plugin_loader().register_in_loader(pkg_loader)
-
-        executor = dsl_executor.MuranoDslExecutor(
-            pkg_loader, ContextManager(), self.session)
-        try:
-            obj = executor.load(self.model)
-        except Exception as e:
-            return self.exception_result(e, None, '<load>')
-
-        if obj is not None:
+        with dsl_executor.MuranoDslExecutor(
+                pkg_loader, ContextManager(), self.session) as executor:
             try:
-                self._validate_model(obj.object, pkg_loader)
+                obj = executor.load(self.model)
             except Exception as e:
-                return self.exception_result(e, obj, '<validate>')
+                return self.exception_result(e, None, '<load>')
 
-        try:
-            LOG.debug('Invoking pre-cleanup hooks')
-            self.session.start()
-            executor.cleanup(self._model)
-        except Exception as e:
-            return self.exception_result(e, obj, '<GC>')
-        finally:
-            LOG.debug('Invoking post-cleanup hooks')
-            self.session.finish()
-        self._model['ObjectsCopy'] = copy.deepcopy(self._model.get('Objects'))
-
-        action_result = None
-        if self.action:
-            try:
-                LOG.debug('Invoking pre-execution hooks')
-                self.session.start()
+            if obj is not None:
                 try:
-                    action_result = self._invoke(executor)
-                finally:
-                    try:
-                        self._model, alive_object_ids = \
-                            serializer.serialize_model(obj, executor)
-                        LOG.debug('Cleaning up orphan objects')
-                        n = executor.cleanup_orphans(alive_object_ids)
-                        LOG.debug('{} orphan objects were destroyed'.format(n))
-
-                    except Exception as e:
-                        return self.exception_result(e, None, '<model>')
+                    self._validate_model(obj.object, pkg_loader, executor)
+                except Exception as e:
+                    return self.exception_result(e, obj, '<validate>')
+            try:
+                LOG.debug('Invoking pre-cleanup hooks')
+                self.session.start()
+                executor.object_store.cleanup()
             except Exception as e:
-                return self.exception_result(e, obj, self.action['method'])
+                return self.exception_result(e, obj, '<GC>')
             finally:
-                LOG.debug('Invoking post-execution hooks')
+                LOG.debug('Invoking post-cleanup hooks')
                 self.session.finish()
+            self._model['ObjectsCopy'] = \
+                copy.deepcopy(self._model.get('Objects'))
 
-        try:
-            action_result = serializer.serialize(action_result, executor)
-        except Exception as e:
-            return self.exception_result(e, None, '<result>')
+            action_result = None
+            if self.action:
+                try:
+                    LOG.debug('Invoking pre-execution hooks')
+                    self.session.start()
+                    try:
+                        action_result = self._invoke(executor)
+                    finally:
+                        self._model = executor.finalize(obj)
 
+                except Exception as e:
+                    return self.exception_result(e, obj, self.action['method'])
+                    LOG.debug('Invoking post-execution hooks')
+                    self.session.finish()
+            try:
+                action_result = serializer.serialize(action_result, executor)
+            except Exception as e:
+                return self.exception_result(e, None, '<result>')
+
+        pkg_loader.compact_fixation_table()
         return {
             'action': {
                 'result': action_result,
@@ -277,19 +289,20 @@ class TaskExecutor(object):
             }
         }
 
-    def _validate_model(self, obj, pkg_loader):
+    def _validate_model(self, obj, pkg_loader, executor):
         if CONF.engine.enable_model_policy_enforcer:
             if obj is not None:
-                self._model_policy_enforcer.modify(obj, pkg_loader)
-                self._model_policy_enforcer.validate(obj.to_dictionary(),
-                                                     pkg_loader)
+                with helpers.with_object_store(executor.object_store):
+                    self._model_policy_enforcer.modify(obj, pkg_loader)
+                    self._model_policy_enforcer.validate(obj.to_dictionary(),
+                                                         pkg_loader)
 
     def _invoke(self, mpl_executor):
         obj = mpl_executor.object_store.get(self.action['object_id'])
         method_name, kwargs = self.action['method'], self.action['args']
 
         if obj is not None:
-            return obj.type.invoke(method_name, mpl_executor, obj, (), kwargs)
+            return mpl_executor.run(obj.type, method_name, obj, (), kwargs)
 
     def _create_trust(self):
         if not CONF.engine.use_trusts:
@@ -352,4 +365,4 @@ class StaticActionExecutor(object):
         cls = package.find_class(class_name, search_requirements=False)
         method_name, kwargs = self.action['method'], self.action['args']
 
-        return cls.invoke(method_name, mpl_executor, None, (), kwargs)
+        return mpl_executor.run(cls, method_name, None, (), kwargs)
