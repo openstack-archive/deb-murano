@@ -1,0 +1,11 @@
+Code-Review+2: Kirill Zaitsev <kzaitsev@mirantis.com>
+Code-Review+1: Jose Phillips <jose.phillips@topmanage.com>
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Verified+1: Murano CI
+Workflow+1: Kirill Zaitsev <kzaitsev@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 21 Sep 2016 21:34:43 +0000
+Reviewed-on: https://review.openstack.org/374316
+Project: openstack/deb-murano
+Branch: refs/heads/stable/newton
