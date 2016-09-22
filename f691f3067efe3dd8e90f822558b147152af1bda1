@@ -1,0 +1,10 @@
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Verified+1: Murano CI
+Code-Review+2: zhurong <zhu.rong@99cloud.net>
+Workflow+1: zhurong <zhu.rong@99cloud.net>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 22 Sep 2016 05:54:43 +0000
+Reviewed-on: https://review.openstack.org/374382
+Project: openstack/deb-murano
+Branch: refs/heads/master
