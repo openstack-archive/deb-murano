@@ -81,7 +81,7 @@ Build-Depends-Indep: alembic (>= 0.8.4),
 Standards-Version: 3.9.8
 Homepage: https://github.com/openstack/murano
 Vcs-Browser: https://git.openstack.org/cgit/openstack/deb-murano
-Vcs-Git: https://git.openstack.org/openstack/deb-murano
+Vcs-Git: https://git.openstack.org/openstack/deb-murano -b debian/newton
 
 Package: python-murano
 Architecture: all
