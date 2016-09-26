@@ -1,0 +1,10 @@
+Verified+1: Murano CI
+Code-Review+2: Alexander Tivelkov <ativelkov@mirantis.com>
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Workflow+1: Stan Lagun <slagun@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 26 Sep 2016 16:56:50 +0000
+Reviewed-on: https://review.openstack.org/372491
+Project: openstack/deb-murano
+Branch: refs/heads/master
