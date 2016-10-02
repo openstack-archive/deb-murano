@@ -55,16 +55,26 @@ override_dh_install:
 	# Get the main config file to use decent defaults.
 	mkdir -p $(CURDIR)/debian/murano-common/usr/share/murano-common
 	oslo-config-generator --output-file $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf \
-		--namespace keystonemiddleware.auth_token \
+		--wrap-width 140 \
+		--namespace keystone_authtoken \
 		--namespace murano \
 		--namespace oslo.db \
 		--namespace oslo.log \
 		--namespace oslo.messaging \
+		--namespace oslo.middleware.cors \
 		--namespace oslo.policy \
 		--namespace oslo.service.service
+
 	sed -i 's/^[ \t#]*auth_protocol[ \t]*=[ \t].*/auth_protocol = http/' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 	sed -i 's|^[# \t]*notification_driver[ \t]*=.*|notification_driver=messagingv2|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
 	sed -i 's|#connection=<None>|connection=sqlite:///var/lib/murano/muranodb|' $(CURDIR)/debian/murano-common/usr/share/murano-common/murano.conf
+
+	oslo-config-generator --output-file $(CURDIR)/debian/murano-common/usr/share/murano-common/murano-cfapi.conf \
+		--wrap-width 140 \
+		--namespace keystone_authtoken \
+		--namespace murano.cfapi \
+		--namespace oslo.db \
+		--namespace oslo.log
 
 	# Install other configuration files in a more "normal" way
 	mkdir -p $(CURDIR)/debian/murano-common/etc/murano

@@ -19,6 +19,7 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 
 	# Manage the configuration file
 	pkgos_write_new_conf ${PROJECT_NAME} ${PROJECT_NAME}.conf
+	pkgos_write_new_conf ${PROJECT_NAME} murano-cfapi.conf
 	pkgos_rabbit_write_conf ${PROJECT_CONF} oslo_messaging_rabbit ${PROJECT_NAME}
 	pkgos_write_admin_creds ${PROJECT_CONF} keystone_authtoken ${PROJECT_NAME}
         db_get ${PROJECT_NAME}/configure_db
