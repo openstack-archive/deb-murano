@@ -25,6 +25,7 @@ if [ "$1" = "purge" ] && [ -f /usr/share/debconf/confmodule ] ; then
 		fi
 	fi
 	rm -f ${PROJECT_CONF}
+	rm -f /etc/${PROJECT_NAME}/murano-cfapi.conf
 	rmdir --ignore-fail-on-non-empty /etc/${PROJECT_NAME} || true
 	rm -rf /var/lib/${PROJECT_NAME} /var/log/${PROJECT_NAME} /var/cache/${PROJECT_NAME}
 fi
