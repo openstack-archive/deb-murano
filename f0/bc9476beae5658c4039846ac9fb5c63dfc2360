@@ -1,0 +1,12 @@
+Verified+1: Murano CI
+Code-Review+2: Serg Melikyan <smelikyan@mirantis.com>
+Code-Review+1: ShangXiao <shangxiaobj@inspur.com>
+Code-Review+1: Alexander Tivelkov <ativelkov@mirantis.com>
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Workflow+1: Kirill Zaitsev <k.zaitsev@me.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 29 Nov 2016 12:24:21 +0000
+Reviewed-on: https://review.openstack.org/403257
+Project: openstack/deb-murano
+Branch: refs/heads/master
