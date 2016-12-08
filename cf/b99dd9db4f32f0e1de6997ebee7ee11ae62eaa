@@ -1,0 +1,11 @@
+Verified+1: Murano CI
+Code-Review+1: Nanke_Liu (lnk) <nanke.liu@easystack.cn>
+Code-Review+2: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+2: zhurong <aaronzhu1121@gmail.com>
+Workflow+1: zhurong <aaronzhu1121@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 08 Dec 2016 02:23:53 +0000
+Reviewed-on: https://review.openstack.org/406014
+Project: openstack/deb-murano
+Branch: refs/heads/master

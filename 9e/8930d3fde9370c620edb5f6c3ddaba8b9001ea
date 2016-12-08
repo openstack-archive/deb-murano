@@ -1,0 +1,10 @@
+Verified+1: Murano CI
+Code-Review+2: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+2: Felipe Monteiro <felipe.monteiro@att.com>
+Workflow+1: Felipe Monteiro <felipe.monteiro@att.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 05 Dec 2016 21:31:28 +0000
+Reviewed-on: https://review.openstack.org/405033
+Project: openstack/deb-murano
+Branch: refs/heads/master
