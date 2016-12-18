@@ -1,9 +1,13 @@
-murano (1:3.0.0-2) UNRELEASED; urgency=medium
+murano (1:3.0.0-2) unstable; urgency=medium
 
+  [ Ondřej Nový ]
   * Bumped debhelper compat version to 10
-  * Added lsb-base to depends
 
- -- Ondřej Nový <onovy@debian.org>  Wed, 23 Nov 2016 23:59:48 +0100
+  [ Thomas Goirand ]
+  * rm /etc/murano/murano-cfapi.conf on purge (Closes: #842072).
+  * Added lsb-base to depends.
+
+ -- Thomas Goirand <zigo@debian.org>  Sun, 18 Dec 2016 11:32:17 +0100
 
 murano (1:3.0.0-1) unstable; urgency=medium
 

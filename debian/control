@@ -173,9 +173,9 @@ Depends: adduser,
          dbconfig-common,
          debconf,
          murano-common (= ${source:Version}),
-         lsb-base,
          python-openstackclient,
          ${misc:Depends},
+         ${ostack-lsb-base},
          ${python:Depends},
 Description: cloud-ready application catalog - API server
  Murano Project introduces an application catalog, which allows application
@@ -194,8 +194,8 @@ Depends: adduser,
          dbconfig-common,
          debconf,
          murano-common (= ${source:Version}),
-         lsb-base,
          ${misc:Depends},
+         ${ostack-lsb-base},
          ${python:Depends},
 Description: cloud-ready application catalog - Engine server
  Murano Project introduces an application catalog, which allows application
@@ -211,8 +211,8 @@ Package: murano-cfapi
 Architecture: all
 Depends: adduser,
          murano-common (= ${source:Version}),
-         lsb-base,
          ${misc:Depends},
+         ${ostack-lsb-base},
          ${python:Depends},
 Description: cloud-ready application catalog - Cloud Foundry broker
  Murano Project introduces an application catalog, which allows application
