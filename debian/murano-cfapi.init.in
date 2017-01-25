@@ -15,3 +15,4 @@
 DESC="OpenStack Murano CF API"
 PROJECT_NAME=murano
 NAME=${PROJECT_NAME}-cfapi
+CONFIG_FILE=/etc/${PROJECT_NAME}/${PROJECT_NAME}-cfapi.conf

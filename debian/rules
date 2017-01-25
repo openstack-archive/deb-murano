@@ -76,6 +76,8 @@ override_dh_install:
 		--namespace oslo.db \
 		--namespace oslo.log
 
+	cp $(CURDIR)/etc/murano/murano-cfapi-paste.ini $(CURDIR)/debian/murano-common/usr/share/murano-common
+
 	# Install other configuration files in a more "normal" way
 	mkdir -p $(CURDIR)/debian/murano-common/etc/murano
 	cp $(CURDIR)/etc/murano/logging.conf.sample $(CURDIR)/debian/murano-common/etc/murano/logging.conf
