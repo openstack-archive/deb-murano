@@ -1,0 +1,10 @@
+Verified+1: Murano CI
+Code-Review+2: Felipe Monteiro <felipe.monteiro@att.com>
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Workflow+1: Kirill Zaitsev <k.zaitsev@me.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 21 Feb 2017 20:58:06 +0000
+Reviewed-on: https://review.openstack.org/433724
+Project: openstack/deb-murano
+Branch: refs/heads/stable/ocata
