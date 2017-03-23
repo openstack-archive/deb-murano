@@ -1,0 +1,11 @@
+Verified+1: Murano CI
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Code-Review+2: Stan Lagun <slagun@mirantis.com>
+Workflow+1: Stan Lagun <slagun@mirantis.com>
+Code-Review+2: Felipe Monteiro <felipe.monteiro@att.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 16 Feb 2017 21:09:11 +0000
+Reviewed-on: https://review.openstack.org/435079
+Project: openstack/deb-murano
+Branch: refs/heads/stable/mitaka
