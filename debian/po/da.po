@@ -1,0 +1,313 @@
+# Danish translation murano.
+# Copyright (C) 2017 murano og nedenstående oversættere.
+# This file is distributed under the same license as the murano package.
+# Joe Hansen (joedalton2@yahoo.dk), 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: murano\n"
+"Report-Msgid-Bugs-To: murano@packages.debian.org\n"
+"POT-Creation-Date: 2016-03-29 13:48+0000\n"
+"PO-Revision-Date: 2017-01-01 10:42+0000\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../murano-common.templates:2001
+msgid "Set up a database for Murano?"
+msgstr "Opsæt en database for Murano?"
+
+#. Type: boolean
+#. Description
+#: ../murano-common.templates:2001
+msgid ""
+"No database has been set up for Murano to use. Before continuing, you should "
+"make sure you have the following information:"
+msgstr ""
+"Ingen database er blevet opsat for Murano. Før du fortsætter, så skal du sikre "
+"dig, at du har den følgende information:"
+
+#. Type: boolean
+#. Description
+#: ../murano-common.templates:2001
+msgid ""
+" * the type of database that you want to use;\n"
+" * the database server hostname (that server must allow TCP connections from "
+"this\n"
+"   machine);\n"
+" * a username and password to access the database."
+msgstr ""
+" * databasetypen, som du ønsker at anvende;\n"
+" * databaseserverens værtsnavn (den server skal tillade TCP-forbindelser\n"
+"   fra denne maskine);\n"
+" * et brugernavn og en adgangskode til at tilgå databasen."
+
+#. Type: boolean
+#. Description
+#: ../murano-common.templates:2001
+msgid ""
+"If some of these requirements are missing, do not choose this option and run "
+"with regular SQLite support."
+msgstr ""
+"Hvis nogle af disse krav mangler, så vælg ikke denne indstilling og kør "
+"med normal SQLite-understøttelse i stedet for."
+
+#. Type: boolean
+#. Description
+#: ../murano-common.templates:2001
+msgid ""
+"You can change this setting later on by running \"dpkg-reconfigure -plow "
+"murano-common\"."
+msgstr ""
+"Du kan ændre denne indstilling senere ved at køre »dpkg-reconfigure -plow "
+"murano-common«."
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:3001
+msgid "Authentication server hostname:"
+msgstr "Værtsnavn for godkendelsesserveren:"
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:3001
+msgid ""
+"Please specify the hostname of the authentication server. Typically this is "
+"also the hostname of the OpenStack Identity Service (Keystone)."
+msgstr ""
+"Angiv venligst værtsnavnet for godkendelsesserveren. Typisk er dette også "
+"værtsnavnet for OpenStack Identity Service (Keystone)."
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../murano-common.templates:4001
+msgid "Authentication server tenant name:"
+msgstr "Tenantnavn for godkendelseserveren:"
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../murano-common.templates:4001
+msgid "Please specify the authentication server tenant name."
+msgstr "Angiv venligst godkendelsesserverens tenantnavn."
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:5001
+msgid "Authentication server username:"
+msgstr "Brugernavn for godkendelseserveren:"
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:5001
+msgid "Please specify the username to use with the authentication server."
+msgstr ""
+"Angiv venligst brugernavnet som vil blive brugt med godkendelseserveren."
+
+#. Type: password
+#. Description
+#: ../murano-common.templates:6001
+msgid "Authentication server password:"
+msgstr "Adgangskode for godkendelsesserveren:"
+
+#. Type: password
+#. Description
+#: ../murano-common.templates:6001
+msgid "Please specify the password to use with the authentication server."
+msgstr ""
+"Angiv venligst adgangskoden som vil blive brugt med godkendelsesserveren."
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:7001
+msgid "IP address of your RabbitMQ host:"
+msgstr "IP-adresse for din RabbitMQ-vært:"
+
+#. Type: string
+#. Description
+#. Type: string
+#. Description
+#. Type: password
+#. Description
+#: ../murano-common.templates:7001 ../murano-common.templates:8001
+#: ../murano-common.templates:9001
+msgid ""
+"In order to interoperate with other components of OpenStack, this package "
+"needs to connect to a central RabbitMQ server."
+msgstr ""
+"Denne pakke skal kunne forbinde med en central RabbitMQ-server, or at "
+"fungere med andre komponenter i OpenStack."
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:7001
+msgid "Please specify the IP address of that server."
+msgstr "Angiv venligst IP-adressen for den server."
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:8001
+msgid "Username for connection to the RabbitMQ server:"
+msgstr "Brugernavn for forbindelsen til RabbitMQ-serveren:"
+
+#. Type: string
+#. Description
+#: ../murano-common.templates:8001
+msgid "Please specify the username used to connect to the RabbitMQ server."
+msgstr ""
+"Angiv venligst brugernavnet brugt til at forbinde til RabbitMQ-serveren."
+
+#. Type: password
+#. Description
+#: ../murano-common.templates:9001
+msgid "Password for connection to the RabbitMQ server:"
+msgstr "Adgangskode for forbindelsen til RabbitMQ-serveren:"
+
+#. Type: password
+#. Description
+#: ../murano-common.templates:9001
+msgid "Please specify the password used to connect to the RabbitMQ server."
+msgstr ""
+"Angiv venligst adgangskoden brugt til at forbinde til RabbitMQ-serveren."
+
+#. Type: boolean
+#. Description
+#: ../murano-api.templates:2001
+msgid "Register Murano in the Keystone endpoint catalog?"
+msgstr "Registrer Murano i Keystones slutpunktskatalog?"
+
+#. Type: boolean
+#. Description
+#: ../murano-api.templates:2001
+msgid ""
+"Each OpenStack service (each API) should be registered in order to be "
+"accessible. This is done using \"keystone service-create\" and \"keystone "
+"endpoint-create\". This can be done automatically now."
+msgstr ""
+"Hver OpenStack-tjeneste (hver API) skal registreres for at være tilgængelig. "
+"Dette gøres med »keystone service-create« og »keystone endpoint-create«, "
+"hvilket nu kan udføres automatisk."
+
+#. Type: boolean
+#. Description
+#: ../murano-api.templates:2001
+msgid ""
+"Note that you will need to have an up and running Keystone server on which "
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
+msgstr ""
+"Bemærk at du skal have en op og kørende Keystoneserver, som du kan forbinde "
+"til et kendt administratorprojektnavn, administratorbrugernavn og "
+"adgangskode. Administratorens godkendelsessymbol bruges ikke længere."
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:3001
+msgid "Keystone server IP address:"
+msgstr "IP-adresse for Keystoneserver:"
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:3001
+msgid ""
+"Please enter the IP address of the Keystone server, so that murano-api can "
+"contact Keystone to do the Murano service and endpoint creation."
+msgstr ""
+"Indtast venligst IP-adressen for Keystoneserveren, så at murano-api kan "
+"kontakte Keystone for at udføre Ceilometertjenesten og slutpunktsoprettelse."
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:4001
+msgid "Keystone admin name:"
+msgstr "Administratornavn for Keystone:"
+
+#. Type: string
+#. Description
+#. Type: string
+#. Description
+#. Type: password
+#. Description
+#: ../murano-api.templates:4001 ../murano-api.templates:5001
+#: ../murano-api.templates:6001
+msgid ""
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
+msgstr ""
+"For at registrere tjenesteslutpunkt skal denne pakke kende til "
+"administratorlogind'et, navn, projektnavn og adgangskode for "
+"Keystoneserveren."
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr "Projektnavn for Keystoneadministratoren:"
+
+#. Type: password
+#. Description
+#: ../murano-api.templates:6001
+msgid "Keystone admin password:"
+msgstr "Adgangskode for Keystoneadministratoren:"
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:7001
+msgid "Murano endpoint IP address:"
+msgstr "IP-adresse for Muranos slutpunkt:"
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:7001
+msgid "Please enter the IP address that will be used to contact Murano."
+msgstr ""
+"Indtast venligst IP-adressen som vil blive brugt til at kontakte Murano."
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:7001
+msgid ""
+"This IP address should be accessible from the clients that will use this "
+"service, so if you are installing a public cloud, this should be a public IP "
+"address."
+msgstr ""
+"Denne IP-adresse skal være tilgængelig fra klienterne som vil bruge denne "
+"tjeneste, så hvis du installerer en offentlig sky, skal dette være en "
+"offentlig IP-adresse."
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:8001
+msgid "Name of the region to register:"
+msgstr "Navn på regionen der skal registreres:"
+
+#. Type: string
+#. Description
+#: ../murano-api.templates:8001
+msgid ""
+"OpenStack supports using availability zones, with each region representing a "
+"location. Please enter the zone that you wish to use when registering the "
+"endpoint."
+msgstr ""
+"OpenStack understøtter at bruge tilgængelighedszoner, hvor hver region "
+"repræsenterer et sted. Indtast venligst zonen, som du ønsker at bruge, når "
+"du registrerer slutpunktet."
+
