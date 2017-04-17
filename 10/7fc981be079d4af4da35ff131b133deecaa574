@@ -1,0 +1,12 @@
+Verified+1: Murano CI
+Code-Review+2: Victor Ryzhenkin (freerunner) <vryzhenkin@mirantis.com>
+Code-Review+1: Artem Tiumentcev <AITyumentsev.SBT@sberbank.ru>
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Workflow+1: Kirill Zaitsev <k.zaitsev@me.com>
+Code-Review+1: ShangXiao <shangxiaobj@inspur.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 17 Apr 2017 09:48:08 +0000
+Reviewed-on: https://review.openstack.org/451909
+Project: openstack/deb-murano
+Branch: refs/heads/master
