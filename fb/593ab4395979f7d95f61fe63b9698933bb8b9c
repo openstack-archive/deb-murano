@@ -1,0 +1,12 @@
+Code-Review+1: Paul Bourke (pbourke) <paul.bourke@oracle.com>
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Code-Review+2: Alexander Tivelkov <locher@yandex.ru>
+Code-Review+2: Felipe Monteiro <felipe.monteiro@att.com>
+Verified+1: Murano CI
+Workflow+1: Stan Lagun <slagun@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 21 May 2017 08:49:05 +0000
+Reviewed-on: https://review.openstack.org/463690
+Project: openstack/deb-murano
+Branch: refs/heads/master
