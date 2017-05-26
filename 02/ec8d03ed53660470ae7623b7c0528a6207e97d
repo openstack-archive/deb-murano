@@ -1,0 +1,10 @@
+Verified+1: Murano CI
+Code-Review+2: zhurong <aaronzhu1121@gmail.com>
+Code-Review+2: Felipe Monteiro <felipe.monteiro@att.com>
+Workflow+1: Felipe Monteiro <felipe.monteiro@att.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 26 May 2017 11:41:08 +0000
+Reviewed-on: https://review.openstack.org/384411
+Project: openstack/deb-murano
+Branch: refs/heads/master
