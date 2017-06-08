@@ -1,0 +1,11 @@
+Verified+1: Murano CI
+Code-Review+2: zhurong <aaronzhu1121@gmail.com>
+Code-Review+2: Kirill Zaitsev <k.zaitsev@me.com>
+Workflow+1: Kirill Zaitsev <k.zaitsev@me.com>
+Workflow+1: zhurong <aaronzhu1121@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 08 Jun 2017 18:47:39 +0000
+Reviewed-on: https://review.openstack.org/472088
+Project: openstack/deb-murano
+Branch: refs/heads/master
